@@ -1,5 +1,3 @@
-src/LexParser/
-
 # IDE
 .vscode/
 
@@ -38,3 +36,8 @@ build/
 *.exe
 *.out
 *.app
+
+# antlr
+src/LexParser/.antlr/
+!src/LexParser/antlr_runtime/lib/*.a
+!src/LexParser/antlr_runtime/lib/*.so
