@@ -1,5 +1,10 @@
+src/LexParser/
+
 # IDE
 .vscode/
+
+# cmake
+build/
 
 # Prerequisites
 *.d
