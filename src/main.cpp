@@ -17,7 +17,7 @@ int main(){
 )"""" << endl << endl;
 
 	while(true){
-		cout << "> ";
+		cout << "  > ";
 		string input, s;
 		while(true){
 			getline(cin, s);
@@ -28,7 +28,6 @@ int main(){
 			input.append(s + ' ');
 			cout << "... ";
 		}
-		cout << input <<endl;
 		if(input == "q;"){
 			cout << "bye~" << endl;
 			break;
