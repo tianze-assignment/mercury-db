@@ -1,5 +1,6 @@
 #include <exception>
 #include <iostream>
+#include <string>
 #include "parse.h"
 #include "antlr4-runtime.h"
 
@@ -17,13 +18,26 @@ int main(){
 
 	while(true){
 		cout << "> ";
-		string s;
-		getline(cin, s);
-		if(s == "quit"){
+		string input, s;
+		while(true){
+			getline(cin, s);
+			if(s.ends_with(';')){
+				input.append(s);
+				break;
+			}
+			input.append(s + ' ');
+			cout << "... ";
+		}
+		cout << input <<endl;
+		if(input == "q;"){
 			cout << "bye~" << endl;
 			break;
 		}
-		antlrcpp::Any r = parse(s);
+		antlrcpp::Any r = parse(input);
+		if(r.isNull()){ // if syntax error
+			cout << "Syntax error" << endl;
+			continue;
+		}
 		for(const antlrcpp::Any& statement : r.as<vector<antlrcpp::Any>>()){
 			try{
 				cout << statement.as<const char *>() << endl;
@@ -32,5 +46,7 @@ int main(){
 			}
 		}
 	}
+
+	// do some close setup
 	
 }

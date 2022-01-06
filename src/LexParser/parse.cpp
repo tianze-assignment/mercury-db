@@ -18,7 +18,12 @@ antlrcpp::Any parse(std::string sSQL) {
 	CommonTokenStream sTokenStream(&iLexer);
 	// 设置Parser
 	SQLParser iParser(&sTokenStream);
+	
 	auto iTree = iParser.program();
+	// check syntax error
+	size_t rc = iParser.getNumberOfSyntaxErrors();
+	if(rc != 0) return antlrcpp::Any();
+	
 	// 构造你的visitor
 	MyVisitor iVisitor;
 	// visitor模式下执行SQL解析过程
