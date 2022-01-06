@@ -1,4 +1,5 @@
 add_subdirectory(LexParser)
+add_subdirectory(Record)
 
 add_executable(DB main.cpp)
 
