@@ -7,16 +7,23 @@
 #include "antlr4-runtime.h"
 
 class MyVisitor : public SQLVisitor {
+    std::vector<antlrcpp::Any> results;
+
    public:
-    MyVisitor() {
-    }
     antlrcpp::Any visitProgram(SQLParser::ProgramContext *context) {
-		
-        return antlrcpp::Any(0);
+        for (auto statement : context->statement())
+            results.push_back(statement->accept(this));
+        return antlrcpp::Any(results);
     }
 
     antlrcpp::Any visitStatement(SQLParser::StatementContext *context) {
-        return antlrcpp::Any(0);
+        if (auto s = context->db_statement()) return s->accept(this);
+        if (auto s = context->io_statement()) return s->accept(this);
+        if (auto s = context->table_statement()) return s->accept(this);
+        if (auto s = context->alter_statement()) return s->accept(this);
+        if (auto s = context->Annotation()) return s->accept(this);
+        if (auto s = context->Null()) return s->accept(this);
+		return antlrcpp::Any(-1);
     }
 
     antlrcpp::Any visitCreate_db(SQLParser::Create_dbContext *context) {
@@ -76,13 +83,11 @@ class MyVisitor : public SQLVisitor {
     }
 
     antlrcpp::Any visitSelect_table_(SQLParser::Select_table_Context *context) {
-        printf("1\n");
-		return antlrcpp::Any(0);
+        return context->select_table()->accept(this);
     }
 
     antlrcpp::Any visitSelect_table(SQLParser::Select_tableContext *context) {
-        printf("2\n");
-		return antlrcpp::Any(0);
+        return antlrcpp::Any("This is a select statement!");
     }
 
     antlrcpp::Any visitAlter_add_index(SQLParser::Alter_add_indexContext *context) {
