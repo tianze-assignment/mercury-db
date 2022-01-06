@@ -19,11 +19,15 @@ int main(){
 		cout << "> ";
 		string s;
 		getline(cin, s);
-		if(s == "quit"){
+		if(s == "quit" || s == "q"){
 			cout << "bye~" << endl;
 			break;
 		}
 		antlrcpp::Any r = parse(s);
+		if(r.isNull()){ // if syntax error
+			cout << "Syntax error" << endl;
+			continue;
+		}
 		for(const antlrcpp::Any& statement : r.as<vector<antlrcpp::Any>>()){
 			try{
 				cout << statement.as<const char *>() << endl;
@@ -32,5 +36,7 @@ int main(){
 			}
 		}
 	}
+
+	// do some close setup
 	
 }
