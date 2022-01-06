@@ -1,3 +1,4 @@
 #include <string>
+#include "antlr4-runtime.h"
 
-int parse(std::string sSQL);
+antlrcpp::Any parse(std::string sSQL);
