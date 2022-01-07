@@ -24,16 +24,19 @@ public:
         int _page, _slot;
         Iterator(RecordHandler* handler, int page, int slot)
             :_handler(handler), _page(page), _slot(slot){}
+        Iterator():Iterator(NULL, 0, 0){}
     };
 
     Iterator begin();
-    void del(Iterator it);
     void ins(const Record& record);
-    void upd(Iterator it, const Record& record);
+    void del(const Iterator& it);
+    void upd(const Iterator& it, const Record& record);
+
 private:
 	FileManager* _fm;
 	BufPageManager* _bpm;
     int _fileID, _pageIndex;
+    Iterator _end;
     RecordType _type;
     uint8_t* _data;
     void _openPage(int page);

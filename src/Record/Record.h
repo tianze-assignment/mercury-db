@@ -1,5 +1,7 @@
 #pragma once
 
+#include <iostream>
+
 struct RecordType{
     int num_int, num_varchar;
     RecordType(int num_int, int num_varchar)
@@ -16,5 +18,12 @@ struct Record{
         int_data = new int[type.num_int];
         varchar_null = new bool[type.num_varchar];
         varchar_data = new char*[type.num_varchar];
+    }
+    void output(std::ostream& os, const RecordType& type) {
+        for (int i = 0; i < type.num_int; ++i)
+            int_null[i] ? (os << "NULL ") : (os << int_data[i] << " ");
+        for (int i = 0; i < type.num_varchar; ++i)
+            varchar_null[i] ? (os << "NULL ") : (os << """" << varchar_data[i] << """ ");
+        os << std::endl;
     }
 };

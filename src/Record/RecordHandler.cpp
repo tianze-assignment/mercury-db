@@ -4,9 +4,10 @@
 #include "Record.h"
 #include "RecordHandler.h"
 
-const uint16_t FILE_END = 65535;
-const uint16_t PAGE_END = 65534;
-const uint16_t EMPTY_SLOT = 65533;
+const uint16_t FLAG_BITS = (1<<15) | (1<<14);
+const uint16_t FILE_END = (1<<15) | (1<<14);
+const uint16_t PAGE_END = (1<<15);
+const uint16_t EMPTY_SLOT = (1<<14);
 
 RecordHandler::RecordHandler() {
     MyBitMap::initConst();
@@ -28,6 +29,7 @@ int RecordHandler::createFile(const char* fileName, const RecordType& type) {
     _data = (uint8_t*)_bpm->allocPage(_fileID, 0, _pageIndex, false);
     _bpm->markDirty(_pageIndex);
     _setOffset(0, FILE_END);
+    _end = Iterator(this, 0, 0);
     return flag;
 }
 
@@ -35,6 +37,7 @@ int RecordHandler::openFile(const char* fileName, const RecordType& type) {
     int flag = 0;
     flag |= !_fm->openFile(fileName, _fileID);
     _type = type;
+    for (_end = begin(); !_end.isEnd(); ++_end);
     return flag;
 }
 
@@ -77,36 +80,112 @@ Record RecordHandler::_getRecord(int page, int slot) {
         if (bitOffset < 7) ++bitOffset;
         else ++offset, bitOffset = 0;
     }
-    ++offset;
+    if (bitOffset) ++offset;
 
     for (int i = 0; i < _type.num_int; ++i) {
         record.int_data[i] = *(int*)(&_data[offset]);
         offset += sizeof(int);
     }
-    for (int i = 0; i < _type.num_varchar; ++i) {
+    for (int i = 0; i < _type.num_varchar; ++i) if (!record.varchar_null[i]) {
         uint16_t len = *(uint16_t*)(&_data[offset]);
         offset += sizeof(uint16_t);
         record.varchar_data[i] = new char[len+1];
         memcpy(record.varchar_data[i], _data+offset, len);
         record.varchar_data[i][len] = 0;
+        offset += len;
     }
 
     return record;
 }
 
 void RecordHandler::_nextSlot(int& page, int& slot) {
-    int pageIndex;
-    uint16_t* data = NULL;
+    _openPage(page);
     while (true) {
-        if (data == NULL) data = (uint16_t*)_bpm->getPage(_fileID, page, pageIndex);
-        uint16_t offset = data[PAGE_SIZE-slot-1];
-
-        if (offset == FILE_END) return;
-        if (offset == PAGE_END) {++page; slot = 0;}
-        if (offset == EMPTY_SLOT) ++
+        uint16_t offset = _getOffset(slot);
+        if ((offset & FLAG_BITS) == PAGE_END) {_openPage(++page); slot = 0;}
+        else if ((offset & FLAG_BITS) == EMPTY_SLOT) ++slot;
+        else return;
     }
+}
+
+void RecordHandler::ins(const Record& record) {
+    int len = (_type.num_int + _type.num_varchar + 7 >> 3) + sizeof(int) * _type.num_int;
+    for (int i = 0; i < _type.num_varchar; ++i) if(!record.varchar_null[i])
+        len += sizeof(uint16_t) + strlen(record.varchar_data[i]);
+    _openPage(_end._page);
+
+    int offset = _getOffset(_end._slot) & ~FLAG_BITS;
+    if (offset + len > PAGE_SIZE - (_end._slot + 1 << 1)) {
+        _bpm->markDirty(_pageIndex);
+        _setOffset(_end._slot, PAGE_END | offset);
+        _data = (uint8_t*)_bpm->allocPage(_fileID, ++_end._page, _pageIndex, false);
+        _end._slot = 0;
+        offset = 0;
+    }
+
+    _bpm->markDirty(_pageIndex);
+    _setOffset(_end._slot, offset);
+    
+    int bitOffset = 0;
+    for (int i = 0; i < _type.num_int; ++i) {
+        if (bitOffset == 0) _data[offset] = 0;
+        _data[offset] |= record.int_null[i] << bitOffset;
+        if (bitOffset < 7) ++bitOffset;
+        else ++offset, bitOffset = 0;
+    }
+    for (int i = 0; i < _type.num_varchar; ++i) {
+        if (bitOffset == 0) _data[offset] = 0;
+        _data[offset] |= record.varchar_null[i] << bitOffset;
+        if (bitOffset < 7) ++bitOffset;
+        else ++offset, bitOffset = 0;
+    }
+    if (bitOffset) ++offset;
+
+    for (int i = 0; i < _type.num_int; ++i) {
+        *(int*)(&_data[offset]) = record.int_data[i];
+        offset += sizeof(int);
+    }
+    for (int i = 0; i < _type.num_varchar; ++i) if (!record.varchar_null[i]) {
+        uint16_t len = strlen(record.varchar_data[i]);
+        *(uint16_t*)(&_data[offset]) = len;
+        offset += sizeof(uint16_t);
+        memcpy(_data+offset, record.varchar_data[i], len);
+        offset += len;
+    }
+
+    _setOffset(++_end._slot, FILE_END | offset);
+}
+
+void RecordHandler::del(const Iterator& it) {
+    _openPage(it._page);
+    int offset = _getOffset(it._slot);
+    _bpm->markDirty(_pageIndex);
+    _setOffset(it._slot, EMPTY_SLOT | offset);
+}
+
+void RecordHandler::upd(const Iterator& it, const Record& record) {
+    del(it);
+    ins(record);
 }
 
 Record RecordHandler::Iterator::operator*() {
     return _handler->_getRecord(_page, _slot);
+}
+
+RecordHandler::Iterator& RecordHandler::Iterator::operator++() {
+    ++_slot;
+    _handler->_nextSlot(_page, _slot);
+    return *this;
+}
+
+RecordHandler::Iterator RecordHandler::Iterator::operator++(int) {
+    RecordHandler::Iterator it = *this;
+    ++_slot;
+    _handler->_nextSlot(_page, _slot);
+    return it;
+}
+
+bool RecordHandler::Iterator::isEnd() {
+    _handler->_openPage(_page);
+    return (_handler->_getOffset(_slot) & FLAG_BITS) == FILE_END;
 }
