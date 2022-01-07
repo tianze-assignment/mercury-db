@@ -103,7 +103,7 @@ void RecordHandler::_nextSlot(int& page, int& slot) {
 
         if (offset == FILE_END) return;
         if (offset == PAGE_END) {++page; slot = 0;}
-        if (offset == EMPTY_SLOT) ++
+        // if (offset == EMPTY_SLOT) ++
     }
 }
 
