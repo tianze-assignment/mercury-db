@@ -1,9 +1,7 @@
 #pragma once
 
+#include "FileSystem.h"
 #include "Record.h"
-
-#include "fileio/FileManager.h"
-#include "bufmanager/BufPageManager.h"
 
 class RecordHandler {
 public:
@@ -18,6 +16,8 @@ public:
         Iterator& operator++();
         Iterator operator++(int);
         bool isEnd();
+        int toInt();
+        Iterator(RecordHandler* handler, int);
     private:
         friend class RecordHandler;
         RecordHandler* _handler;
@@ -28,9 +28,9 @@ public:
     };
 
     Iterator begin();
-    void ins(const Record& record);
+    Iterator ins(const Record& record);
     void del(const Iterator& it);
-    void upd(const Iterator& it, const Record& record);
+    Iterator upd(const Iterator& it, const Record& record);
 
 private:
 	FileManager* _fm;

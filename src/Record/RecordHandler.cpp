@@ -10,15 +10,13 @@ const uint16_t PAGE_END = (1<<15);
 const uint16_t EMPTY_SLOT = (1<<14);
 
 RecordHandler::RecordHandler() {
-    MyBitMap::initConst();
-    _fm = new FileManager();
-    _bpm = new BufPageManager(_fm);
+    FileSystem::init();
+    _fm = FileSystem::fm;
+    _bpm = FileSystem::bpm;
 }
 
 RecordHandler::~RecordHandler() {
-    _bpm->close();
-    delete _bpm;
-    delete _fm;
+    FileSystem::release();
 }
 
 int RecordHandler::createFile(const char* fileName, const RecordType& type) {
@@ -108,7 +106,7 @@ void RecordHandler::_nextSlot(int& page, int& slot) {
     }
 }
 
-void RecordHandler::ins(const Record& record) {
+RecordHandler::Iterator RecordHandler::ins(const Record& record) {
     int len = (_type.num_int + _type.num_varchar + 7 >> 3) + sizeof(int) * _type.num_int;
     for (int i = 0; i < _type.num_varchar; ++i) if(!record.varchar_null[i])
         len += sizeof(uint16_t) + strlen(record.varchar_data[i]);
@@ -154,6 +152,7 @@ void RecordHandler::ins(const Record& record) {
     }
 
     _setOffset(++_end._slot, FILE_END | offset);
+    return Iterator(this, _end._page, _end._slot-1);
 }
 
 void RecordHandler::del(const Iterator& it) {
@@ -163,9 +162,9 @@ void RecordHandler::del(const Iterator& it) {
     _setOffset(it._slot, EMPTY_SLOT | offset);
 }
 
-void RecordHandler::upd(const Iterator& it, const Record& record) {
+RecordHandler::Iterator RecordHandler::upd(const Iterator& it, const Record& record) {
     del(it);
-    ins(record);
+    return ins(record);
 }
 
 Record RecordHandler::Iterator::operator*() {
@@ -189,3 +188,10 @@ bool RecordHandler::Iterator::isEnd() {
     _handler->_openPage(_page);
     return (_handler->_getOffset(_slot) & FLAG_BITS) == FILE_END;
 }
+
+int RecordHandler::Iterator::toInt() {
+    return _page * PAGE_SIZE + _slot;
+}
+
+RecordHandler::Iterator::Iterator(RecordHandler* handler, int x):
+    RecordHandler::Iterator(handler, x / PAGE_SIZE, x % PAGE_SIZE) {}
