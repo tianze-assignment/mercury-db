@@ -67,3 +67,16 @@ string TableManager::create_table(Schema &schema) {
     this->schemas[schema.table_name] = schema;
     return "Created";
 }
+
+string TableManager::drop_table(string name){
+	// check use database
+    if (db_manager->get_current_db().empty()) return "Please use a database first";
+	// check table
+	auto dir = db_root / db_manager->get_current_db() / name;
+	std::error_code code;
+	auto suc = fs::remove_all(dir, code);
+	if(suc) return "Removed";
+	if(code.value() == 0) return "Table does not exist";
+	return code.message();
+}
+

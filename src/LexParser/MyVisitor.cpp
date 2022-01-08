@@ -86,7 +86,10 @@ antlrcpp::Any MyVisitor::visitCreate_table(SQLParser::Create_tableContext *conte
 }
 
 antlrcpp::Any MyVisitor::visitDrop_table(SQLParser::Drop_tableContext *context) {
-    return antlrcpp::Any(0);
+    string name = context->Identifier()->getText();
+    return antlrcpp::Any(string_to_char(
+        this->table_manager->drop_table(name)
+    ));
 }
 
 antlrcpp::Any MyVisitor::visitDescribe_table(SQLParser::Describe_tableContext *context) {

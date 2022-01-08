@@ -16,4 +16,5 @@ class TableManager {
     ~TableManager();
 
     string create_table(Schema &schema);
+	string drop_table(string name);
 };
