@@ -52,6 +52,12 @@ bool Schema::write(string db_name) {
         out << fk.ref_fks.size() << " ";
         for (auto &ref_fk : fk.ref_fks) out << ref_fk << " ";
     }
+    // index
+    out << this->indexes.size() << " ";
+    for (auto index : indexes) {
+        out << index.size() << " ";
+        for (auto i : index) out << i << " ";
+    }
     return true;
 }
 
@@ -125,11 +131,24 @@ Schema::Schema(string table_name, string db_name) {
         }
         this->fks.push_back(fk);
     }
+    // index
+    in >> size;
+    for (int i = 0; i < size; i++) {
+        this->indexes.push_back(vector<string>());
+        int sub_size;
+        cin >> sub_size;
+        for (int j = 0; j < sub_size; j++) {
+            string sub_index;
+            in >> sub_index;
+            this->indexes[i].push_back(sub_index);
+        }
+    }
 }
 
 string Schema::to_str() {
+    // TODO: change to table
     stringstream ss;
-    ss << "TABLE " << this->table_name << " (\n";
+    
     for (auto &col : this->columns) {
         ss << "    " << col.name << " ";
         if (col.type == INT) ss << "INT"
@@ -144,7 +163,7 @@ string Schema::to_str() {
             ss << "DEFAULT ";
             if (col.default_value.type == INT) ss << *((int *)(&col.default_value.bytes[0]));
             if (col.default_value.type == FLOAT) ss << *((float *)(&col.default_value.bytes[0]));
-            if (col.default_value.type == VARCHAR){
+            if (col.default_value.type == VARCHAR) {
                 ss << "'";
                 for (auto c : col.default_value.bytes) ss << c;
                 ss << "' ";
