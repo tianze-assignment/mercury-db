@@ -101,10 +101,14 @@ antlrcpp::Any MyVisitor::visitDescribe_table(SQLParser::Describe_tableContext *c
 
 antlrcpp::Any MyVisitor::visitInsert_into_table(SQLParser::Insert_into_tableContext *context) {
     string table_name = context->Identifier()->getText();
+    vector<vector<Value>> value_lists;
     for(auto value_list : context->value_lists()->value_list()){
         auto values = value_list->accept(this).as<vector<Value>>();
+        value_lists.push_back(values);
     }
-    return antlrcpp::Any(0);
+    return antlrcpp::Any(string_to_char(
+        this->table_manager->insert(table_name, value_lists)
+    ));
 }
 
 antlrcpp::Any MyVisitor::visitDelete_from_table(SQLParser::Delete_from_tableContext *context) {

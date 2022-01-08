@@ -93,3 +93,7 @@ string TableManager::describe_table(string name){
 	return schema->to_str();
 }
 
+string TableManager::insert(string table_name, vector<vector<Value>> &value_lists){
+
+}
+
