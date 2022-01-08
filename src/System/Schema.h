@@ -27,6 +27,8 @@ struct Column {
     // vector<uint8_t> default_value;  // zero length if no default
 	bool has_default;
 	Value default_value;
+	
+	string type_str();
 };
 
 struct PK {
