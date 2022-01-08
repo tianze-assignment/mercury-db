@@ -1,6 +1,9 @@
 #include "MyVisitor.h"
 
 #include <cstdio>
+#include <exception>
+
+#include "Schema.h"
 
 const char *string_to_char(std::string s) {
     return strdup(s.c_str());
@@ -61,9 +64,25 @@ antlrcpp::Any MyVisitor::visitDump_data(SQLParser::Dump_dataContext *context) {
 }
 
 antlrcpp::Any MyVisitor::visitCreate_table(SQLParser::Create_tableContext *context) {
-    string table_name = context->Identifier()->getText();
-    context->field_list()->accept(this);
-    return antlrcpp::Any(0);
+    Schema schema;
+    schema.table_name = context->Identifier()->getText();
+    for (auto field : context->field_list()->field()) {
+        auto r = field->accept(this);
+        try {
+            auto column = r.as<Column>();
+            schema.columns.push_back(column);
+        } catch (bad_cast) {
+            try {
+                auto pk = r.as<PK>();
+                schema.pk = pk;
+            } catch (bad_cast) {
+                auto fk = r.as<FK>();
+                schema.fks.push_back(fk);
+            }
+        }
+    }
+    return antlrcpp::Any(string_to_char(
+        this->table_manager->create_table(schema)));
 }
 
 antlrcpp::Any MyVisitor::visitDrop_table(SQLParser::Drop_tableContext *context) {
@@ -127,15 +146,60 @@ antlrcpp::Any MyVisitor::visitField_list(SQLParser::Field_listContext *context) 
 }
 
 antlrcpp::Any MyVisitor::visitNormal_field(SQLParser::Normal_fieldContext *context) {
-    return antlrcpp::Any(0);
+    Column column;
+    column.name = context->Identifier()->getText();
+    // type
+    if (auto i = context->type_()->Integer()) column.varchar_len = std::stoi(i->getText());
+    string type = context->type_()->getText();
+    if (type.starts_with("INT")) column.type = INT;
+    if (type.starts_with("VARCHAR")) column.type = VARCHAR;
+    if (type.starts_with("FLOAT")) column.type = FLOAT;
+    // not null
+    column.not_null = context->Null() != nullptr;
+    // default
+    if (auto v = context->value()) {
+        if (v->Null())
+            column.default_null = true;
+        else if (auto i = v->Integer()) {
+            column.default_null = false;
+            int value = std::stoi(i->getText());
+            uint8_t *bytes = static_cast<uint8_t *>(static_cast<void *>(&value));
+            column.default_value = vector<uint8_t>(bytes, bytes + 4);
+        } else if (auto f = v->Float()) {
+            column.default_null = false;
+            float value = std::stof(f->getText());
+            uint8_t *bytes = static_cast<uint8_t *>(static_cast<void *>(&value));
+            column.default_value = vector<uint8_t>(bytes, bytes + 4);
+        } else if (auto s = v->String()) {
+            column.default_null = false;
+            string value = s->getText();
+            column.default_value = vector<uint8_t>(value.begin(), value.end());
+        }
+    } else {  // if no default
+        column.default_null = false;
+    }
+    return antlrcpp::Any(column);
 }
 
 antlrcpp::Any MyVisitor::visitPrimary_key_field(SQLParser::Primary_key_fieldContext *context) {
-    return antlrcpp::Any(0);
+    PK pk;
+    if (auto i = context->Identifier()) pk.name = i->getText();
+    for (auto i : context->identifiers()->Identifier()) pk.pks.push_back(i->getText());
+    return antlrcpp::Any(pk);
 }
 
 antlrcpp::Any MyVisitor::visitForeign_key_field(SQLParser::Foreign_key_fieldContext *context) {
-    return antlrcpp::Any(0);
+    FK fk;
+    if (auto is = context->Identifier(); is.size() == 1) {
+        fk.ref_table = is[0]->getText();
+    } else {
+        fk.name = is[0]->getText();
+        fk.ref_table = is[1]->getText();
+    }
+    auto iss = context->identifiers();
+    for (auto is : iss[0]->Identifier()) fk.fks.push_back(is->getText());
+    for (auto is : iss[1]->Identifier()) fk.ref_fks.push_back(is->getText());
+    return antlrcpp::Any(fk);
 }
 
 antlrcpp::Any MyVisitor::visitType_(SQLParser::Type_Context *context) {

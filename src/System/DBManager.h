@@ -5,7 +5,7 @@
 
 using namespace std;
 
-#define DB_DIR "databases/"
+#define DB_DIR "databases"
 
 class DBManager {
     string current_db;
