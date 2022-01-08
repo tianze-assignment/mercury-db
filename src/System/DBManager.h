@@ -18,6 +18,9 @@ class DBManager {
     RecordHandler *record_handler;
     IndexHandler *index_handler;
     unordered_map<string, Schema> schemas;
+    string file_name(const Schema& schema);
+    void open_record(const Schema& schema);
+    string rows_text(int row);
 
    public:
     DBManager();

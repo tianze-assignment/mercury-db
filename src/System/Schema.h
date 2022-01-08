@@ -53,5 +53,5 @@ class Schema {
     bool write(string db_name);
     string to_str();
     int find_column(string &name);
-    RecordType record_type();
+    RecordType record_type() const;
 };

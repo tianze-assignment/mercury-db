@@ -62,7 +62,6 @@ Schema::Schema(string table_name, string db_name) {
     ifstream in(string(DB_DIR) + "/" + db_name + "/" + table_name + "/" + table_name + ".schema");
     // table_name
     in >> this->table_name;
-    this->table_name = table_name;
     // columns
     int size;
     in >> size;
@@ -183,7 +182,7 @@ int Schema::find_column(string &name) {
     return i;
 }
 
-RecordType Schema::record_type() {
+RecordType Schema::record_type() const {
     RecordType res;
     for (auto column: columns) {
         if (column.type == VARCHAR) ++res.num_varchar;

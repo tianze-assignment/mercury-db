@@ -5,6 +5,18 @@
 
 namespace fs = std::filesystem;
 
+string DBManager::file_name(const Schema& schema) {
+    return string(DB_DIR) + "/" + current_dbname + "/" + schema.table_name + "/" + schema.table_name;
+}
+
+void DBManager::open_record(const Schema& schema) {
+    record_handler->openFile((file_name(schema) + "data").data(), schema.record_type());
+}
+
+string DBManager::rows_text(int row) {
+    return to_string(row) + " row" + (row > 1 ? "s" : "");
+}
+
 string DBManager::create_table(Schema &schema) {
     // check use database
     if (current_dbname.empty()) return "Please use a database first";
@@ -51,9 +63,7 @@ string DBManager::create_table(Schema &schema) {
 
     this->schemas[schema.table_name] = schema;
 
-    record_handler->createFile(
-        (string(DB_DIR) + "/" + current_dbname + "/" + schema.table_name + "/" + schema.table_name + ".data").data(),
-        schema.record_type());
+    record_handler->createFile((file_name(schema) + ".data").data(), schema.record_type());
 
     return "Created";
 }
@@ -85,6 +95,7 @@ string DBManager::insert(string table_name, vector<vector<Value>> &value_lists){
 	if(schemas.find(table_name) == schemas.end()) return "Table does not exist";
     Schema& schema = schemas[table_name];
     RecordType type = schema.record_type();
+    open_record(schema);
 
     for(auto value_list: value_lists) {
         if (value_list.size() != schema.columns.size()) return "Invalid number of values";
@@ -108,8 +119,7 @@ string DBManager::insert(string table_name, vector<vector<Value>> &value_lists){
                 record.int_data[int_count++] = *((int*)value.bytes.data());
             }
         }
-        //todo
+        record_handler->ins(record);
     }
-    return string("");
+    return "Insert " + rows_text(value_lists.size()) + " OK";
 }
-
