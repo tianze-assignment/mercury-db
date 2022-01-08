@@ -44,4 +44,6 @@ private:
     void _setOffset(int slot, uint16_t offset);
     Record _getRecord(int page, int slot);
     void _nextSlot(int& page, int& slot);
+    int _getLen(const Record& record);
+    void _setRecord(int offset, const Record& record);
 };

@@ -106,24 +106,14 @@ void RecordHandler::_nextSlot(int& page, int& slot) {
     }
 }
 
-RecordHandler::Iterator RecordHandler::ins(const Record& record) {
+int RecordHandler::_getLen(const Record& record) {
     int len = (_type.num_int + _type.num_varchar + 7 >> 3) + sizeof(int) * _type.num_int;
     for (int i = 0; i < _type.num_varchar; ++i) if(!record.varchar_null[i])
         len += sizeof(uint16_t) + strlen(record.varchar_data[i]);
-    _openPage(_end._page);
+    return len;
+}
 
-    int offset = _getOffset(_end._slot) & ~FLAG_BITS;
-    if (offset + len > PAGE_SIZE - (_end._slot + 1 << 1)) {
-        _bpm->markDirty(_pageIndex);
-        _setOffset(_end._slot, PAGE_END | offset);
-        _data = (uint8_t*)_bpm->allocPage(_fileID, ++_end._page, _pageIndex, false);
-        _end._slot = 0;
-        offset = 0;
-    }
-
-    _bpm->markDirty(_pageIndex);
-    _setOffset(_end._slot, offset);
-    
+void RecordHandler::_setRecord(int offset, const Record& record) {
     int bitOffset = 0;
     for (int i = 0; i < _type.num_int; ++i) {
         if (bitOffset == 0) _data[offset] = 0;
@@ -150,8 +140,24 @@ RecordHandler::Iterator RecordHandler::ins(const Record& record) {
         memcpy(_data+offset, record.varchar_data[i], len);
         offset += len;
     }
+}
 
-    _setOffset(++_end._slot, FILE_END | offset);
+RecordHandler::Iterator RecordHandler::ins(const Record& record) {
+    _openPage(_end._page);
+    int offset = _getOffset(_end._slot) & ~FLAG_BITS;
+    int len = _getLen(record);
+    if (offset + len > PAGE_SIZE - (_end._slot + 1 << 1)) {
+        _bpm->markDirty(_pageIndex);
+        _setOffset(_end._slot, PAGE_END | offset);
+        _data = (uint8_t*)_bpm->allocPage(_fileID, ++_end._page, _pageIndex, false);
+        _end._slot = 0;
+        offset = 0;
+    }
+
+    _bpm->markDirty(_pageIndex);
+    _setOffset(_end._slot, offset);
+    _setRecord(offset, record);
+    _setOffset(++_end._slot, FILE_END | (offset + len));
     return Iterator(this, _end._page, _end._slot-1);
 }
 
@@ -163,8 +169,16 @@ void RecordHandler::del(const Iterator& it) {
 }
 
 RecordHandler::Iterator RecordHandler::upd(const Iterator& it, const Record& record) {
-    del(it);
-    return ins(record);
+    _openPage(it._page);
+    int offset = _getOffset(it._slot);
+    int nextOffset = _getOffset(it._slot + 1) & ~FLAG_BITS;
+    _bpm->markDirty(_pageIndex);
+    if (offset + _getLen(record) > nextOffset) {
+        _setOffset(it._slot, EMPTY_SLOT | offset);
+        return ins(record);
+    }
+    _setRecord(offset, record);
+    return it;
 }
 
 Record RecordHandler::Iterator::operator*() {

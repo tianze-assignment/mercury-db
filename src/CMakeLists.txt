@@ -3,7 +3,7 @@ add_subdirectory(LexParser)
 add_subdirectory(Record)
 add_subdirectory(Index)
 
-add_executable(DB testIndex.cpp)
+add_executable(DB main.cpp)
 
 target_link_libraries(DB Parser)
 target_link_libraries(DB Record)

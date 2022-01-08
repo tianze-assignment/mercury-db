@@ -19,13 +19,14 @@ int main() {
     record.varchar_null[0] = true;
     record.varchar_null[1] = false;
     record.varchar_data[1] = "hello";
-    for (int i = 0 ; i < 5; ++i)
+    for (int i = 0 ; i < 10; ++i)
     {
         record.int_data[1] = i +2;
         handler.ins(record);
     }
+    
+    handler.upd(handler.begin(), record);
+    //handler.del(handler.begin());
     */
-    //handler.upd(handler.begin(), record);
-    handler.del(handler.begin());
     output();
 }
