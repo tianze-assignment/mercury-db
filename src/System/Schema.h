@@ -7,15 +7,24 @@ using namespace std;
 
 enum Type { INT,
             VARCHAR,
-            FLOAT };
+            FLOAT,
+            Null };
+
+struct Value {
+    Type type;
+    vector<uint8_t> bytes;
+	
+};
 
 struct Column {
     string name;
     Type type;
     int varchar_len;
     bool not_null;
-    bool default_null;
-    vector<uint8_t> default_value;  // zero length if no default
+    // bool default_null;
+    // vector<uint8_t> default_value;  // zero length if no default
+	bool has_default;
+	Value default_value;
 };
 
 struct PK {
@@ -41,5 +50,5 @@ class Schema {
     Schema(string table_name, string db_name);
     bool write(string db_name);
     string to_str();
-	int find_column(string &name);
+    int find_column(string &name);
 };

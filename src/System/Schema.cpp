@@ -13,9 +13,17 @@ bool Schema::write(string db_name) {
     // columns
     out << columns.size() << " ";
     for (auto &c : columns) {
-        out << c.name << " " << c.type << " " << c.varchar_len << " " << c.not_null << " " << c.default_null << " ";
-        out << c.default_value.size() << " ";
-        for (auto &v : c.default_value) out << int(v) << " ";
+        out << c.name << " " << c.type << " " << c.varchar_len << " " << c.not_null << " ";
+        // default
+        out << c.has_default << " ";
+        if (c.has_default) {
+            if (c.default_value.type == Null)
+                out << "1 ";
+            else
+                out << "0 ";
+            out << c.default_value.bytes.size() << " ";
+            for (auto &v : c.default_value.bytes) out << int(v) << " ";
+        }
     }
     // pk_name
     if (this->pk.name.empty())
@@ -61,13 +69,21 @@ Schema::Schema(string table_name, string db_name) {
         int type;
         in >> column.name >> type;
         column.type = static_cast<Type>(type);
-        in >> column.varchar_len >> column.not_null >> column.default_null;
-        int default_value_size;
-        in >> default_value_size;
-        for (int j = 0; j < default_value_size; j++) {
-            int v;
-            in >> v;
-            column.default_value.push_back(uint8_t(v));
+        in >> column.varchar_len >> column.not_null >> column.has_default;
+        if (column.has_default) {
+            bool is_null;
+            in >> is_null;
+            if (is_null)
+                column.default_value.type = Null;
+            else
+                column.default_value.type = column.type;
+            int default_value_size;
+            in >> default_value_size;
+            for (int j = 0; j < default_value_size; j++) {
+                int v;
+                in >> v;
+                column.default_value.bytes.push_back(uint8_t(v));
+            }
         }
         this->columns.push_back(column);
     }
@@ -123,12 +139,16 @@ string Schema::to_str() {
         if (col.type == FLOAT) ss << "FLOAT"
                                   << " ";
         if (col.not_null) ss << "NOT NULL ";
-        if (col.default_null || !col.default_value.empty()) {  // if has default
+        if (col.has_default) {  // if has default
             ss << "DEFAULT ";
-            if (col.type == INT) ss << *((int *)(&col.default_value[0]));
-            if (col.type == FLOAT) ss << *((float *)(&col.default_value[0]));
-            if (col.type == VARCHAR)
-                for (auto c : col.default_value) ss << c;
+            if (col.default_value.type == INT) ss << *((int *)(&col.default_value.bytes[0]));
+            if (col.default_value.type == FLOAT) ss << *((float *)(&col.default_value.bytes[0]));
+            if (col.default_value.type == VARCHAR){
+                ss << "'";
+                for (auto c : col.default_value.bytes) ss << c;
+                ss << "' ";
+            }
+            if(col.default_value.type == Null) ss << "NULL";
         }
         ss << ",\n";
     }
@@ -153,10 +173,10 @@ string Schema::to_str() {
     return ss.str();
 }
 
-int Schema::find_column(string &name){
+int Schema::find_column(string &name) {
     int i = 0;
-    for(; i < this->columns.size(); i++){
-        if(this->columns[i].name == name) break;
+    for (; i < this->columns.size(); i++) {
+        if (this->columns[i].name == name) break;
     }
     return i;
 }

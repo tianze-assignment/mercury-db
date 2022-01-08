@@ -37,6 +37,13 @@ string TableManager::create_table(Schema &schema) {
             column_names.insert(column.name);
         else
             return "Duplicate column name: " + column.name;
+		if(column.has_default){
+			if(column.default_value.type == Null){
+				if(column.not_null) return "Default is NULL but NOT NULL is enabled";
+			}else{
+				if(column.type != column.default_value.type) return "Default value type and field type of column '" + column.name + "' are not identical";
+			}
+		}
     }
     for (auto &pk_column : schema.pk.pks) {
         if (column_names.find(pk_column) == column_names.end()) return "Primary key field not declared: " + pk_column;

@@ -100,6 +100,10 @@ antlrcpp::Any MyVisitor::visitDescribe_table(SQLParser::Describe_tableContext *c
 }
 
 antlrcpp::Any MyVisitor::visitInsert_into_table(SQLParser::Insert_into_tableContext *context) {
+    string table_name = context->Identifier()->getText();
+    for(auto value_list : context->value_lists()->value_list()){
+        auto values = value_list->accept(this).as<vector<Value>>();
+    }
     return antlrcpp::Any(0);
 }
 
@@ -164,25 +168,10 @@ antlrcpp::Any MyVisitor::visitNormal_field(SQLParser::Normal_fieldContext *conte
     column.not_null = context->Null() != nullptr;
     // default
     if (auto v = context->value()) {
-        if (v->Null())
-            column.default_null = true;
-        else if (auto i = v->Integer()) {
-            column.default_null = false;
-            int value = std::stoi(i->getText());
-            uint8_t *bytes = static_cast<uint8_t *>(static_cast<void *>(&value));
-            column.default_value = vector<uint8_t>(bytes, bytes + 4);
-        } else if (auto f = v->Float()) {
-            column.default_null = false;
-            float value = std::stof(f->getText());
-            uint8_t *bytes = static_cast<uint8_t *>(static_cast<void *>(&value));
-            column.default_value = vector<uint8_t>(bytes, bytes + 4);
-        } else if (auto s = v->String()) {
-            column.default_null = false;
-            string value = s->getText();
-            column.default_value = vector<uint8_t>(value.begin(), value.end());
-        }
+        column.has_default = true;
+        column.default_value = v->accept(this).as<Value>();
     } else {  // if no default
-        column.default_null = false;
+        column.has_default = false;
     }
     return antlrcpp::Any(column);
 }
@@ -217,11 +206,34 @@ antlrcpp::Any MyVisitor::visitValue_lists(SQLParser::Value_listsContext *context
 }
 
 antlrcpp::Any MyVisitor::visitValue_list(SQLParser::Value_listContext *context) {
-    return antlrcpp::Any(0);
+    vector<Value> values;
+    for(auto value : context->value()){
+        values.push_back(value->accept(this).as<Value>());
+    }
+    return antlrcpp::Any(values);
 }
 
 antlrcpp::Any MyVisitor::visitValue(SQLParser::ValueContext *context) {
-    return antlrcpp::Any(0);
+    Value v;
+    if(context->Null()) {
+        v.type = Null;
+    }else if(auto i = context->Integer()){
+        v.type = INT;
+        int value = std::stoi(i->getText());
+        uint8_t *bytes = static_cast<uint8_t *>(static_cast<void *>(&value));
+        v.bytes = vector<uint8_t>(bytes, bytes + 4);
+    }else if(auto f = context->Float()){
+        v.type = FLOAT;
+        float value = std::stof(f->getText());
+        uint8_t *bytes = static_cast<uint8_t *>(static_cast<void *>(&value));
+        v.bytes = vector<uint8_t>(bytes, bytes + 4);
+    }else if(auto s = context->String()){
+        v.type = VARCHAR;
+        string value = s->getText();
+        value.erase(0, 1); value.pop_back();
+        v.bytes = vector<uint8_t>(value.begin(), value.end());
+    }
+    return antlrcpp::Any(v);
 }
 
 antlrcpp::Any MyVisitor::visitWhere_and_clause(SQLParser::Where_and_clauseContext *context) {
