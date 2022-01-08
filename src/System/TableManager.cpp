@@ -80,3 +80,9 @@ string TableManager::drop_table(string name){
 	return code.message();
 }
 
+string TableManager::describe_table(string name){
+	auto schema = get_schema(name);
+	if(!schema) return "Table does not exist";
+	return schema->to_str();
+}
+
