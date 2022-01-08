@@ -8,10 +8,20 @@
 #include "RecordHandler.h"
 #include "IndexHandler.h"
 #include "Schema.h"
+#include "Query.h"
 
 using namespace std;
 
 #define DB_DIR "databases"
+
+class DBException : public exception {
+    string message;
+public:
+    DBException(string message):message(message){}
+    const char* what() const throw() {
+        return message.data();
+    }
+};
 
 class DBManager {
     static filesystem::path db_dir;
@@ -39,4 +49,5 @@ class DBManager {
 	string describe_table(string name);
 
 	string insert(string table_name, vector<vector<Value>> &value_lists);
+    Query select(vector<QueryCol> cols, vector<string> tables, vector<Condition> conds);
 };

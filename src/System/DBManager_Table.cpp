@@ -2,6 +2,7 @@
 #include <unordered_set>
 
 #include "DBManager.h"
+#include "Query.h"
 
 namespace fs = std::filesystem;
 
@@ -122,4 +123,10 @@ string DBManager::insert(string table_name, vector<vector<Value>> &value_lists){
         record_handler->ins(record);
     }
     return "Insert " + rows_text(value_lists.size()) + " OK";
+}
+
+Query DBManager::select(vector<QueryCol> cols, vector<string> tables, vector<Condition> conds) {
+	// check use database
+    if (current_dbname.empty()) throw DBException("Please use a database first");
+
 }

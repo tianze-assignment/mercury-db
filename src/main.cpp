@@ -42,7 +42,14 @@ int main() {
             cout << "bye~" << endl;
             break;
         }
-        antlrcpp::Any r = parse(input, db_manager);
+        antlrcpp::Any r;
+        try {
+            r = parse(input, db_manager);
+        }
+        catch(exception e) {
+            cout << e.what() << endl;
+            continue;
+        }
         if (r.isNull()) {  // if syntax error
             cout << "Syntax error" << endl;
             continue;

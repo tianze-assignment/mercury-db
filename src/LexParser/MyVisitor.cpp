@@ -4,6 +4,7 @@
 #include <exception>
 
 #include "Schema.h"
+#include "Query.h"
 
 const char *string_to_char(std::string s) {
     return strdup(s.c_str());
@@ -116,11 +117,16 @@ antlrcpp::Any MyVisitor::visitUpdate_table(SQLParser::Update_tableContext *conte
 }
 
 antlrcpp::Any MyVisitor::visitSelect_table_(SQLParser::Select_table_Context *context) {
-    return context->select_table()->accept(this);
+    auto query = context->select_table()->accept(this).as<Query>();
+    return antlrcpp::Any(query.to_str());
 }
 
 antlrcpp::Any MyVisitor::visitSelect_table(SQLParser::Select_tableContext *context) {
-    return antlrcpp::Any("This is a select statement!");
+    auto cols = context->selectors()->accept(this).as<vector<QueryCol>>();
+    auto tables = context->identifiers()->accept(this).as<vector<string>>();
+    vector<Condition> conds;
+    if (auto c = context->where_and_clause()) conds = c->accept(this).as<vector<Condition>>();
+    return antlrcpp::Any(db_manager->select(cols, tables, conds));
 }
 
 antlrcpp::Any MyVisitor::visitAlter_add_index(SQLParser::Alter_add_indexContext *context) {
@@ -241,11 +247,19 @@ antlrcpp::Any MyVisitor::visitValue(SQLParser::ValueContext *context) {
 }
 
 antlrcpp::Any MyVisitor::visitWhere_and_clause(SQLParser::Where_and_clauseContext *context) {
-    return antlrcpp::Any(0);
+    vector<Condition> conditions;
+    for(auto condition: context->where_clause())
+        conditions.push_back(condition->accept(this).as<Condition>());
+    return antlrcpp::Any(conditions);
 }
 
 antlrcpp::Any MyVisitor::visitWhere_operator_expression(SQLParser::Where_operator_expressionContext *context) {
-    return antlrcpp::Any(0);
+    Condition cond;
+    cond.a = context->column()->accept(this).as<QueryCol>();
+    cond.op = context->operator_()->accept(this).as<CMP_OP>();
+    if (auto c = context->expression()->column()) cond.b_col = c->accept(this).as<QueryCol>();
+    else cond.b_val = context->expression()->value()->accept(this).as<Value>();
+    return antlrcpp::Any(cond);
 }
 
 antlrcpp::Any MyVisitor::visitWhere_operator_select(SQLParser::Where_operator_selectContext *context) {
@@ -269,7 +283,8 @@ antlrcpp::Any MyVisitor::visitWhere_like_string(SQLParser::Where_like_stringCont
 }
 
 antlrcpp::Any MyVisitor::visitColumn(SQLParser::ColumnContext *context) {
-    return antlrcpp::Any(0);
+    auto id = context->Identifier();
+    return antlrcpp::Any(make_pair(id[0]->getText(), id[1]->getText()));
 }
 
 antlrcpp::Any MyVisitor::visitExpression(SQLParser::ExpressionContext *context) {
@@ -281,19 +296,32 @@ antlrcpp::Any MyVisitor::visitSet_clause(SQLParser::Set_clauseContext *context) 
 }
 
 antlrcpp::Any MyVisitor::visitSelectors(SQLParser::SelectorsContext *context) {
-    return antlrcpp::Any(0);
+    vector<QueryCol> cols;
+    for (auto selector: context->selector())
+        cols.push_back(selector->accept(this).as<QueryCol>());
+    return antlrcpp::Any(cols);
 }
 
 antlrcpp::Any MyVisitor::visitSelector(SQLParser::SelectorContext *context) {
-    return antlrcpp::Any(0);
+    QueryCol col = context->column()->accept(this).as<QueryCol>();
+    return antlrcpp::Any(col);
 }
 
 antlrcpp::Any MyVisitor::visitIdentifiers(SQLParser::IdentifiersContext *context) {
-    return antlrcpp::Any(0);
+    vector<string> ids;
+    for (auto id: context->Identifier()) ids.push_back(id->getText());
+    return antlrcpp::Any(ids);
 }
 
 antlrcpp::Any MyVisitor::visitOperator_(SQLParser::Operator_Context *context) {
-    return antlrcpp::Any(0);
+    CMP_OP op;
+    if (context->EqualOrAssign()) op = EQUAL;
+    else if (context->Less()) op = LESS;
+    else if (context->LessEqual()) op = LESS_EQUAL;
+    else if (context->Greater()) op = GREATER;
+    else if (context->GreaterEqual()) op = GREATER_EQUAL;
+    else op = NOT_EQUAL;
+    return antlrcpp::Any(op);
 }
 
 antlrcpp::Any MyVisitor::visitAggregator(SQLParser::AggregatorContext *context) {
