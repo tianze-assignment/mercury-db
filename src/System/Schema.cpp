@@ -4,6 +4,14 @@
 #include <sstream>
 
 #include "DBManager.h"
+#include "fort.hpp"
+
+string Column::type_str() {
+    if (type == INT) return "INT";
+    if (type == VARCHAR) return "VARCHAR(" + to_string(varchar_len) + ") ";
+    if (type == FLOAT) return "FLOAT";
+    return "";
+}
 
 bool Schema::write(string db_name) {
     ofstream out(string(DB_DIR) + "/" + db_name + "/" + table_name + "/" + table_name + ".schema");
@@ -64,7 +72,6 @@ bool Schema::write(string db_name) {
 Schema::Schema() {}
 
 Schema::Schema(string table_name, string db_name) {
-    
     ifstream in(string(DB_DIR) + "/" + db_name + "/" + table_name + "/" + table_name + ".schema");
     // table_name
     in >> this->table_name;
@@ -146,41 +153,39 @@ Schema::Schema(string table_name, string db_name) {
 }
 
 string Schema::to_str() {
-    // TODO: change to table
     stringstream ss;
-    
+
+    fort::char_table table;
+    table << fort::header
+          << "Field"
+          << "Type"
+          << "Not NULL"
+          << "Default" << fort::endr;
     for (auto &col : this->columns) {
-        ss << "    " << col.name << " ";
-        if (col.type == INT) ss << "INT"
-                                << " ";
-        if (col.type == VARCHAR) {
-            ss << "VARCHAR(" << col.varchar_len << ") ";
-        }
-        if (col.type == FLOAT) ss << "FLOAT"
-                                  << " ";
-        if (col.not_null) ss << "NOT NULL ";
+        table << col.name << col.type_str()
+              << (col.not_null ? "YES" : "NO");
         if (col.has_default) {  // if has default
-            ss << "DEFAULT ";
-            if (col.default_value.type == INT) ss << *((int *)(&col.default_value.bytes[0]));
-            if (col.default_value.type == FLOAT) ss << *((float *)(&col.default_value.bytes[0]));
-            if (col.default_value.type == VARCHAR) {
-                ss << "'";
-                for (auto c : col.default_value.bytes) ss << c;
-                ss << "' ";
-            }
-            if(col.default_value.type == NULL_TYPE) ss << "NULL";
+            if (col.default_value.type == INT) table << *((int *)(&col.default_value.bytes[0]));
+            if (col.default_value.type == FLOAT) table << *((float *)(&col.default_value.bytes[0]));
+            if (col.default_value.type == VARCHAR) table << "'" + string(col.default_value.bytes.begin(), col.default_value.bytes.end()) + "'";
+            if (col.default_value.type == NULL_TYPE) table << "NULL";
+        } else {
+            table << "NO";
         }
-        ss << ",\n";
+        table << fort::endr;
     }
+    ss << table.to_string() << "\n";
     // pk
-    ss << "    PRIMARY KEY ";
-    if (!this->pk.name.empty()) ss << this->pk.name << " ";
-    ss << "(";
-    for (auto k : this->pk.pks) ss << k << ", ";
-    ss << "),\n";
+    if (!this->pk.pks.empty()) {
+        ss << "PRIMARY KEY ";
+        if (!this->pk.name.empty()) ss << this->pk.name << " ";
+        ss << "(";
+        for (auto k : this->pk.pks) ss << k << ", ";
+        ss << "),\n";
+    }
     // fk
     for (auto fk : this->fks) {
-        ss << "    FOREIGN KEY ";
+        ss << "FOREIGN KEY ";
         if (!fk.name.empty()) ss << fk.name << " ";
         ss << "(";
         for (auto k : fk.fks) ss << k << ", ";
@@ -188,8 +193,13 @@ string Schema::to_str() {
         for (auto k : fk.ref_fks) ss << k << ", ";
         ss << "),\n";
     }
-
-    ss << ")\n";
+    // index
+    for(auto index : this->indexes){
+        ss << "INDEX (";
+        for(auto i : index) ss << i << ", ";
+        ss << "),\n";
+    }
+    
     return ss.str();
 }
 
@@ -203,9 +213,11 @@ int Schema::find_column(string &name) {
 
 RecordType Schema::record_type() const {
     RecordType res;
-    for (auto column: columns) {
-        if (column.type == VARCHAR) ++res.num_varchar;
-        else ++res.num_int;
+    for (auto column : columns) {
+        if (column.type == VARCHAR)
+            ++res.num_varchar;
+        else
+            ++res.num_int;
     }
     return res;
 }

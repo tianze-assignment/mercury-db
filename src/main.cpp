@@ -1,3 +1,6 @@
+#include <readline/history.h>
+#include <readline/readline.h>
+
 #include <exception>
 #include <iostream>
 #include <string>
@@ -25,23 +28,32 @@ int main() {
         string current_db = db_manager->current_dbname;
         string indent_str = current_db.empty() ? "MecuryDB" : current_db;
         int indent_len = indent_str.length();
-        cout << indent_str << "> ";
-
-        string input, s;
-        while (true) {
-            getline(cin, s);
-            if (s.ends_with(';')) {
-                input.append(s);
-                break;
-            }
-            input.append(s + ' ');
-            for (int i = 0; i < indent_len; i++) cout << " ";
-            cout << "> ";
-        }
-        if (input == "q;") {
-            cout << "bye~" << endl;
+        // cout << indent_str << "> ";
+        string input;
+        char* buf = readline((indent_str + "> ").c_str());
+        if (!buf) {
+            cout << endl;
             break;
         }
+        if (strlen(buf) > 0) add_history(buf);
+        string s(buf);
+        if (s == "q;") break;
+        input.append(s + " ");
+
+        bool ctrl_D = false;
+        while (!s.ends_with(';')) {
+            buf = readline((string(indent_len, ' ') + "> ").c_str());
+            if (!buf) {
+                ctrl_D = true;
+                cout << endl;
+                break;
+            }
+            if (strlen(buf) > 0) add_history(buf);
+            s = string(buf);
+            input.append(s + " ");
+        }
+        if(ctrl_D) continue;
+        
         antlrcpp::Any r;
         try {
             r = parse(input, db_manager);
@@ -50,6 +62,7 @@ int main() {
             cout << e.what() << endl;
             continue;
         }
+
         if (r.isNull()) {  // if syntax error
             cout << "Syntax error" << endl;
             continue;
@@ -62,6 +75,8 @@ int main() {
             }
         }
     }
+
+    cout << "bye~" << endl;
 
     // do some close setup
     delete db_manager;

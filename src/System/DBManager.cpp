@@ -1,8 +1,7 @@
-#include "DBManager.h"
-
 #include <filesystem>
+#include "fort.hpp"
 
-#include "variadic_table/VariadicTable.h"
+#include "DBManager.h"
 
 namespace fs = std::filesystem;
 
@@ -62,12 +61,12 @@ string DBManager::use_db(string &name) {
 
 string DBManager::show_tables() {
     if (this->current_dbname.empty()) return "Please use a database first";
-    VariadicTable<std::string> vt({"Tables in " + this->current_dbname});
-    for (auto e : fs::directory_iterator{db_dir / this->current_dbname}) {
-        if (e.is_directory()) vt.addRow(e.path().filename().string());
-    }
-    vt.print(std::cout);
-    return "";
+    fort::char_table table;
+    table << fort::header
+        << "Tables in " + this->current_dbname << fort::endr;
+    for(auto sch : this->schemas)
+        table << sch.second.table_name << fort::endr;
+    return table.to_string();
 }
 
 string DBManager::show_indexes() {
