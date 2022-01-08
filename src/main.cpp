@@ -53,15 +53,8 @@ int main() {
             input.append(s + " ");
         }
         if(ctrl_D) continue;
-        
-        antlrcpp::Any r;
-        try {
-            r = parse(input, db_manager);
-        }
-        catch(exception e) {
-            cout << e.what() << endl;
-            continue;
-        }
+
+        antlrcpp::Any r = parse(input, db_manager);
 
         if (r.isNull()) {  // if syntax error
             cout << "Syntax error" << endl;

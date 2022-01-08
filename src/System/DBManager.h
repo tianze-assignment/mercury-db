@@ -32,7 +32,7 @@ class DBManager {
     void open_record(const Schema& schema);
     string rows_text(int row);
     void check_db();
-    Schema& get_schema(const string& tableName);
+    Schema& get_schema(const string& table_name);
 
    public:
     DBManager();

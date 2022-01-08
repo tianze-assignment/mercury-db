@@ -18,9 +18,13 @@ string DBManager::rows_text(int row) {
     return to_string(row) + " row" + (row > 1 ? "s" : "");
 }
 
+Schema& DBManager::get_schema(const string& table_name) {
+	if(schemas.find(table_name) == schemas.end()) throw DBException("Table does not exist");
+    return schemas[table_name];
+}
+
 string DBManager::create_table(Schema &schema) {
-    // check use database
-    if (current_dbname.empty()) return "Please use a database first";
+    check_db();
     // check schema
     unordered_set<string> column_names;
     for (auto &column : schema.columns) {
@@ -82,16 +86,12 @@ string DBManager::drop_table(string name){
 
 string DBManager::describe_table(string name){
     check_db();
-
-	if(schemas.find(name) == schemas.end()) return "Table does not exist";
-	return schemas[name].to_str();
+    return get_schema(name).to_str();
 }
 
 string DBManager::insert(string table_name, vector<vector<Value>> &value_lists){
     check_db();
-
-	if(schemas.find(table_name) == schemas.end()) return "Table does not exist";
-    Schema& schema = schemas[table_name];
+    Schema& schema = get_schema(table_name);
     RecordType type = schema.record_type();
     open_record(schema);
 
@@ -123,6 +123,7 @@ string DBManager::insert(string table_name, vector<vector<Value>> &value_lists){
 }
 
 Query DBManager::select(vector<QueryCol> cols, vector<string> tables, vector<Condition> conds) {
+    Query query;
     check_db();
-
+    return query;
 }

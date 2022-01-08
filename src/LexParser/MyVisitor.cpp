@@ -13,8 +13,14 @@ const char *string_to_char(std::string s) {
 MyVisitor::MyVisitor(DBManager *db_manager) : db_manager(db_manager) {}
 
 antlrcpp::Any MyVisitor::visitProgram(SQLParser::ProgramContext *context) {
-    for (auto statement : context->statement())
-        results.push_back(statement->accept(this));
+    for (auto statement : context->statement()) {
+        try {
+            results.push_back(statement->accept(this));
+        }
+        catch(DBException e) {
+            results.push_back(string_to_char(e.what()));
+        }
+    }
     return antlrcpp::Any(results);
 }
 
