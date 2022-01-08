@@ -2,11 +2,17 @@
 
 #include <unordered_map>
 
+#include "RecordHandler.h"
+#include "IndexHandler.h"
+
 #include "DBManager.h"
 #include "Schema.h"
 
 class TableManager {
     DBManager *db_manager;
+    RecordHandler *record_handler;
+    IndexHandler *index_handler;
+
     unordered_map<string, Schema> schemas;
 
 	Schema *get_schema(string name);

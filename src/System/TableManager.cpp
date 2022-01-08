@@ -3,7 +3,11 @@
 #include <filesystem>
 #include <unordered_set>
 
-TableManager::TableManager(DBManager *db_manager) : db_manager(db_manager) {}
+TableManager::TableManager(DBManager *db_manager) : db_manager(db_manager) {
+    record_handler = new RecordHandler();
+    index_handler = new IndexHandler();
+}
+
 TableManager::~TableManager() {
     for (auto i : schemas) {
         i.second.write(db_manager->get_current_db());
