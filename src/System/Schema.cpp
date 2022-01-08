@@ -17,7 +17,7 @@ bool Schema::write(string db_name) {
         // default
         out << c.has_default << " ";
         if (c.has_default) {
-            if (c.default_value.type == Null)
+            if (c.default_value.type == NULL_TYPE)
                 out << "1 ";
             else
                 out << "0 ";
@@ -58,9 +58,11 @@ bool Schema::write(string db_name) {
 Schema::Schema() {}
 
 Schema::Schema(string table_name, string db_name) {
+    
     ifstream in(string(DB_DIR) + "/" + db_name + "/" + table_name + "/" + table_name + ".schema");
     // table_name
     in >> this->table_name;
+    this->table_name = table_name;
     // columns
     int size;
     in >> size;
@@ -74,7 +76,7 @@ Schema::Schema(string table_name, string db_name) {
             bool is_null;
             in >> is_null;
             if (is_null)
-                column.default_value.type = Null;
+                column.default_value.type = NULL_TYPE;
             else
                 column.default_value.type = column.type;
             int default_value_size;
@@ -148,7 +150,7 @@ string Schema::to_str() {
                 for (auto c : col.default_value.bytes) ss << c;
                 ss << "' ";
             }
-            if(col.default_value.type == Null) ss << "NULL";
+            if(col.default_value.type == NULL_TYPE) ss << "NULL";
         }
         ss << ",\n";
     }
@@ -179,4 +181,13 @@ int Schema::find_column(string &name) {
         if (this->columns[i].name == name) break;
     }
     return i;
+}
+
+RecordType Schema::record_type() {
+    RecordType res;
+    for (auto column: columns) {
+        if (column.type == VARCHAR) ++res.num_varchar;
+        else ++res.num_int;
+    }
+    return res;
 }

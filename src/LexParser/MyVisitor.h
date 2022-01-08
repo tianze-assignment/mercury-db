@@ -1,7 +1,6 @@
 #pragma once
 
 #include "DBManager.h"
-#include "TableManager.h"
 #include "SQLParser.h"
 #include "SQLVisitor.h"
 #include "antlr4-runtime.h"
@@ -9,10 +8,9 @@
 class MyVisitor : public SQLVisitor {
     std::vector<antlrcpp::Any> results;
     DBManager *db_manager;
-    TableManager *table_manager;
 
    public:
-    MyVisitor(DBManager *db_manager, TableManager *table_manager);
+    MyVisitor(DBManager *db_manager);
 
     antlrcpp::Any visitProgram(SQLParser::ProgramContext *context);
 

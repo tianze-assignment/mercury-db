@@ -9,7 +9,7 @@ const char *string_to_char(std::string s) {
     return strdup(s.c_str());
 }
 
-MyVisitor::MyVisitor(DBManager *db_manager, TableManager *table_manager) : db_manager(db_manager), table_manager(table_manager) {}
+MyVisitor::MyVisitor(DBManager *db_manager) : db_manager(db_manager) {}
 
 antlrcpp::Any MyVisitor::visitProgram(SQLParser::ProgramContext *context) {
     for (auto statement : context->statement())
@@ -82,32 +82,28 @@ antlrcpp::Any MyVisitor::visitCreate_table(SQLParser::Create_tableContext *conte
         }
     }
     return antlrcpp::Any(string_to_char(
-        this->table_manager->create_table(schema)));
+        this->db_manager->create_table(schema)));
 }
 
 antlrcpp::Any MyVisitor::visitDrop_table(SQLParser::Drop_tableContext *context) {
     string name = context->Identifier()->getText();
     return antlrcpp::Any(string_to_char(
-        this->table_manager->drop_table(name)
+        this->db_manager->drop_table(name)
     ));
 }
 
 antlrcpp::Any MyVisitor::visitDescribe_table(SQLParser::Describe_tableContext *context) {
     string name = context->Identifier()->getText();
     return antlrcpp::Any(string_to_char(
-        this->table_manager->describe_table(name)
+        this->db_manager->describe_table(name)
     ));
 }
 
 antlrcpp::Any MyVisitor::visitInsert_into_table(SQLParser::Insert_into_tableContext *context) {
     string table_name = context->Identifier()->getText();
-    vector<vector<Value>> value_lists;
-    for(auto value_list : context->value_lists()->value_list()){
-        auto values = value_list->accept(this).as<vector<Value>>();
-        value_lists.push_back(values);
-    }
+    auto value_lists = context->value_lists()->accept(this).as<vector<vector<Value>>>();
     return antlrcpp::Any(string_to_char(
-        this->table_manager->insert(table_name, value_lists)
+        this->db_manager->insert(table_name, value_lists)
     ));
 }
 
@@ -206,7 +202,11 @@ antlrcpp::Any MyVisitor::visitType_(SQLParser::Type_Context *context) {
 }
 
 antlrcpp::Any MyVisitor::visitValue_lists(SQLParser::Value_listsContext *context) {
-    return antlrcpp::Any(0);
+    vector<vector<Value>> value_lists;
+    for(auto value_list : context->value_list()){
+        value_lists.push_back(value_list->accept(this).as<vector<Value>>());
+    }
+    return antlrcpp::Any(value_lists);
 }
 
 antlrcpp::Any MyVisitor::visitValue_list(SQLParser::Value_listContext *context) {
@@ -220,7 +220,7 @@ antlrcpp::Any MyVisitor::visitValue_list(SQLParser::Value_listContext *context) 
 antlrcpp::Any MyVisitor::visitValue(SQLParser::ValueContext *context) {
     Value v;
     if(context->Null()) {
-        v.type = Null;
+        v.type = NULL_TYPE;
     }else if(auto i = context->Integer()){
         v.type = INT;
         int value = std::stoi(i->getText());

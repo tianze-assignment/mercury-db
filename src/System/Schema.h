@@ -3,12 +3,14 @@
 #include <string>
 #include <vector>
 
+#include "Record.h"
+
 using namespace std;
 
 enum Type { INT,
             VARCHAR,
             FLOAT,
-            Null };
+            NULL_TYPE };
 
 struct Value {
     Type type;
@@ -51,4 +53,5 @@ class Schema {
     bool write(string db_name);
     string to_str();
     int find_column(string &name);
+    RecordType record_type();
 };
