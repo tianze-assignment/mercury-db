@@ -3,7 +3,6 @@
 #include <string>
 
 #include "DBManager.h"
-#include "TableManager.h"
 #include "antlr4-runtime.h"
 #include "parse.h"
 
@@ -21,10 +20,9 @@ int main() {
          << endl;
 
     DBManager* db_manager = new DBManager();
-    TableManager* table_manager = new TableManager(db_manager);
 
     while (true) {
-        string current_db = db_manager->get_current_db();
+        string current_db = db_manager->current_dbname;
         string indent_str = current_db.empty() ? "MecuryDB" : current_db;
         int indent_len = indent_str.length();
         cout << indent_str << "> ";
@@ -44,7 +42,7 @@ int main() {
             cout << "bye~" << endl;
             break;
         }
-        antlrcpp::Any r = parse(input, db_manager, table_manager);
+        antlrcpp::Any r = parse(input, db_manager);
         if (r.isNull()) {  // if syntax error
             cout << "Syntax error" << endl;
             continue;
@@ -59,6 +57,5 @@ int main() {
     }
 
     // do some close setup
-    delete table_manager;
     delete db_manager;
 }
