@@ -13,6 +13,20 @@ TableManager::~TableManager() {
 namespace fs = std::filesystem;
 fs::path db_root(DB_DIR);
 
+Schema *TableManager::get_schema(string name) {
+    if (this->schemas.find(name) == this->schemas.end()) {  // if not found
+        // read from file
+        if (fs::exists(db_root / db_manager->get_current_db() / name / (name + ".schema"))) {  // if file exists
+            this->schemas[name] = Schema(name, db_manager->get_current_db());
+            return &this->schemas[name];
+        } else {  // if file not found
+            return nullptr;
+        }
+    } else {  // if found
+        return &this->schemas[name];
+    }
+}
+
 string TableManager::create_table(Schema &schema) {
     // check use database
     if (db_manager->get_current_db().empty()) return "Please use a database first";
@@ -31,24 +45,15 @@ string TableManager::create_table(Schema &schema) {
         for (auto &fk_column : fk.fks) {
             if (column_names.find(fk_column) == column_names.end()) return "Foreign key field not declared: " + fk_column;
         }
-        Schema ref_table_schema;
-        if (auto ref_schema = this->schemas.find(fk.ref_table); ref_schema == this->schemas.end()) {
-            if (fs::exists(db_root / db_manager->get_current_db() / fk.ref_table)) {
-				// read from file
-                ref_table_schema = Schema(fk.ref_table, db_manager->get_current_db());
-                this->schemas[fk.ref_table] = ref_table_schema;
-            } else {
-                return "Foreign key ref table does not exist: " + fk.ref_table;
-            }
-        } else {
-            ref_table_schema = ref_schema->second;
-        }
+        Schema *ref_table_schema = get_schema(fk.ref_table);
+		if(!ref_table_schema) return "Foreign key ref table not found: " + fk.ref_table;
+
         for (auto &fk_ref_col : fk.ref_fks) {
-            if (ref_table_schema.find_column(fk_ref_col) == ref_table_schema.columns.size())
+            if (ref_table_schema->find_column(fk_ref_col) == ref_table_schema->columns.size())
                 return "Foreign key ref field not found: " + fk_ref_col;
         }
     }
-	// create directory
+    // create directory
     std::error_code code;
     bool suc = fs::create_directories(db_root / db_manager->get_current_db() / schema.table_name, code);
     if (!suc) {
@@ -60,5 +65,5 @@ string TableManager::create_table(Schema &schema) {
     if (!suc) return "Writing failed";
 
     this->schemas[schema.table_name] = schema;
-	return "Created";
+    return "Created";
 }

@@ -9,6 +9,8 @@ class TableManager {
     DBManager *db_manager;
     unordered_map<string, Schema> schemas;
 
+	Schema *get_schema(string name);
+
    public:
     TableManager(DBManager *);
     ~TableManager();
