@@ -1,5 +1,6 @@
 #include <exception>
 #include <iostream>
+#include <string>
 
 #include "DBManager.h"
 #include "TableManager.h"
@@ -20,18 +21,34 @@ int main() {
          << endl;
 
     DBManager* db_manager = new DBManager();
-    TableManager *table_manager = new TableManager(db_manager);
+    TableManager* table_manager = new TableManager(db_manager);
 
     while (true) {
         string current_db = db_manager->get_current_db();
-        cout << (current_db.empty() ? "MecuryDB" : current_db) << "> ";
-        string s;
-        getline(cin, s);
-        if (s == "quit") {
+        string indent_str = current_db.empty() ? "MecuryDB" : current_db;
+        int indent_len = indent_str.length();
+        cout << indent_str << "> ";
+
+        string input, s;
+        while (true) {
+            getline(cin, s);
+            if (s.ends_with(';')) {
+                input.append(s);
+                break;
+            }
+            input.append(s + ' ');
+            for (int i = 0; i < indent_len; i++) cout << " ";
+            cout << "> ";
+        }
+        if (input == "q;") {
             cout << "bye~" << endl;
             break;
         }
-        antlrcpp::Any r = parse(s, db_manager, table_manager);
+        antlrcpp::Any r = parse(input, db_manager, table_manager);
+        if (r.isNull()) {  // if syntax error
+            cout << "Syntax error" << endl;
+            continue;
+        }
         for (const antlrcpp::Any& statement : r.as<vector<antlrcpp::Any>>()) {
             try {
                 cout << statement.as<const char*>() << endl;
@@ -41,6 +58,7 @@ int main() {
         }
     }
 
+    // do some close setup
     delete table_manager;
     delete db_manager;
 }
