@@ -70,8 +70,7 @@ string DBManager::create_table(Schema &schema) {
 }
 
 string DBManager::drop_table(string name){
-	// check use database
-    if (current_dbname.empty()) return "Please use a database first";
+    check_db();
 	// check table
 	auto dir = db_dir / current_dbname / name;
 	std::error_code code;
@@ -82,16 +81,14 @@ string DBManager::drop_table(string name){
 }
 
 string DBManager::describe_table(string name){
-	// check use database
-    if (current_dbname.empty()) return "Please use a database first";
+    check_db();
 
 	if(schemas.find(name) == schemas.end()) return "Table does not exist";
 	return schemas[name].to_str();
 }
 
 string DBManager::insert(string table_name, vector<vector<Value>> &value_lists){
-	// check use database
-    if (current_dbname.empty()) return "Please use a database first";
+    check_db();
 
 	if(schemas.find(table_name) == schemas.end()) return "Table does not exist";
     Schema& schema = schemas[table_name];
@@ -126,7 +123,6 @@ string DBManager::insert(string table_name, vector<vector<Value>> &value_lists){
 }
 
 Query DBManager::select(vector<QueryCol> cols, vector<string> tables, vector<Condition> conds) {
-	// check use database
-    if (current_dbname.empty()) throw DBException("Please use a database first");
+    check_db();
 
 }

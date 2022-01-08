@@ -17,6 +17,10 @@ DBManager::~DBManager() {
     delete index_handler;
 }
 
+void DBManager::check_db() {
+    if (current_dbname.empty()) throw DBException("Please use a database first");
+}
+
 string DBManager::create_db(string &name) {
     std::error_code code;
     bool suc = fs::create_directories(db_dir / name, code);
@@ -60,7 +64,7 @@ string DBManager::use_db(string &name) {
 }
 
 string DBManager::show_tables() {
-    if (this->current_dbname.empty()) return "Please use a database first";
+    check_db();
     fort::char_table table;
     table << fort::header
         << "Tables in " + this->current_dbname << fort::endr;

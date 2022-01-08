@@ -31,6 +31,8 @@ class DBManager {
     string file_name(const Schema& schema);
     void open_record(const Schema& schema);
     string rows_text(int row);
+    void check_db();
+    Schema& get_schema(const string& tableName);
 
    public:
     DBManager();
