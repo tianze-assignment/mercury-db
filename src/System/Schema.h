@@ -45,6 +45,7 @@ class Schema {
     vector<Column> columns;
     PK pk;
     vector<FK> fks;
+	vector<vector<string>> indexes;
 
     Schema();
     Schema(string table_name, string db_name);
