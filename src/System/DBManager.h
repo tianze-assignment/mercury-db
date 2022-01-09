@@ -14,7 +14,7 @@
 using namespace std;
 
 #define DB_DIR "databases"
-#define MANAGER_NAME "MecuryDB"
+#define MANAGER_NAME "MercuryDB"
 
 typedef map<string,int> NameMap;
 
@@ -64,4 +64,6 @@ class DBManager {
     static string rows_text(int row);
 	string insert(string table_name, vector<vector<Value>> &value_lists);
     Query select(vector<QueryCol> cols, vector<string> tables, vector<Condition> conditions);
+
+    string alter_add_index(string &table_name, vector<string> &fields);
 };

@@ -143,7 +143,7 @@ Schema::Schema(string table_name, string db_name) {
     for (int i = 0; i < size; i++) {
         this->indexes.push_back(vector<string>());
         int sub_size;
-        cin >> sub_size;
+        in >> sub_size;
         for (int j = 0; j < sub_size; j++) {
             string sub_index;
             in >> sub_index;
