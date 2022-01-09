@@ -1,8 +1,10 @@
 #include <vector>
 #include <string>
+#include <regex>
 #include "fort.hpp"
 
 #include "Query.h"
+#include "DBManager.h"
 
 using namespace std;
 
@@ -37,64 +39,46 @@ int Condition::cmpIntOrFloat(const Value& a, const Value& b) {
     }
 }
 
+bool Condition::cmpLike(const Value&a, const Value&b) {
+    string s(a.bytes.begin(),a.bytes.end());
+    string m(b.bytes.begin(),b.bytes.end());
+    regex sp("[{}()\\[\\].+*?^$\\\\|]");
+    string p;
+    for (int i = 0; i < m.size(); ++i) {
+        if (m[i] == '%') p += ".*";
+        else if (m[i] == '_') p += '.';
+        else {
+            if (m[i] == '\\' && i+1 < m.size()) ++i;
+            if (regex_match(string(m.begin()+i, m.begin()+i+1), sp)) p += "\\";
+            p += m[i];
+        }
+    }
+    return regex_match(s, regex(p));
+}
+
 bool Condition::cmp(const Value& a, const Value& b, CMP_OP op) {
+    if (op == IS) return (a.type == NULL_TYPE) ^ (b.type != NULL_TYPE);
+    if (a.type == NULL_TYPE || b.type == NULL_TYPE) return false;
+    if ((a.type == VARCHAR) ^ (b.type == VARCHAR)) throw DBException("Values to compare should have a same type");
+    if (op == LIKE) return cmpLike(a, b);
+    int cmp = (a.type == VARCHAR ? cmpVarchar : cmpIntOrFloat)(a, b);
     switch (op)
     {
     case EQUAL:
-        if (a.type == NULL_TYPE) return b.type == NULL_TYPE;
-        if (b.type == NULL_TYPE) return false;
-        if (a.type == VARCHAR) {
-            if (b.type != VARCHAR) return false;
-            return cmpVarchar(a, b) == 0;
-        }
-        if (b.type == VARCHAR) return false;
-        return cmpIntOrFloat(a, b) == 0;
-
+        return cmp == 0;
     case LESS:
-        if (a.type == NULL_TYPE || b.type == NULL_TYPE) return false;
-        if (a.type == VARCHAR) {
-            if (b.type != VARCHAR) return false;
-            return cmpVarchar(a, b) < 0;
-        }
-        if (b.type == VARCHAR) return false;
-        return cmpIntOrFloat(a, b) < 0;
-
+        return cmp < 0;
     case LESS_EQUAL:
-        if (a.type == NULL_TYPE) return b.type == NULL_TYPE;
-        if (b.type == NULL_TYPE) return false;
-        if (a.type == VARCHAR) {
-            if (b.type != VARCHAR) return false;
-            return cmpVarchar(a, b) <= 0;
-        }
-        if (b.type == VARCHAR) return false;
-        return cmpIntOrFloat(a, b) <= 0;
-
+        return cmp <= 0;
     case GREATER:
-        if (a.type == NULL_TYPE || b.type == NULL_TYPE) return false;
-        if (a.type == VARCHAR) {
-            if (b.type != VARCHAR) return false;
-            return cmpVarchar(a, b) > 0;
-        }
-        if (b.type == VARCHAR) return false;
-        return cmpIntOrFloat(a, b) > 0;
-
+        return cmp > 0;
     case GREATER_EQUAL:
-        if (a.type == NULL_TYPE) return b.type == NULL_TYPE;
-        if (b.type == NULL_TYPE) return false;
-        if (a.type == VARCHAR) {
-            if (b.type != VARCHAR) return false;
-            return cmpVarchar(a, b) >= 0;
-        }
-        if (b.type == VARCHAR) return false;
-        return cmpIntOrFloat(a, b) >= 0;
-    
+        return cmp >= 0;
     case NOT_EQUAL:
-        return !cmp(a, b, EQUAL);
-
+        return cmp != 0;
     default:
-        return false;
+        throw DBException("Invalid CMP_OP");
     }
-
 }
 
 string Query::to_str() {
@@ -113,4 +97,10 @@ string Query::to_str() {
         table << fort::endr;
     }
     return table.to_string();
+}
+
+Value Query::to_value() {
+    if (columns.size() != 1 || value_lists.size() != 1)
+        throw DBException("There should be exactly one value in set");
+    return value_lists[0][0];
 }

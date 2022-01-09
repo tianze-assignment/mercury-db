@@ -13,7 +13,9 @@ enum CMP_OP{
     LESS_EQUAL,
     GREATER,
     GREATER_EQUAL,
-    NOT_EQUAL
+    NOT_EQUAL,
+    IS,
+    LIKE
 };
 
 typedef pair<string,string> QueryCol;
@@ -24,6 +26,7 @@ struct Condition{
     CMP_OP op;
     static int cmpVarchar(const Value& a, const Value& b);
     static int cmpIntOrFloat(const Value& a, const Value& b);
+    static bool cmpLike(const Value& a, const Value& b);
     static bool cmp(const Value& a, const Value& b, CMP_OP op);
 };
 
@@ -32,4 +35,5 @@ public:
     vector<QueryCol> columns;
     vector<vector<Value>> value_lists;
     string to_str();
+    Value to_value();
 };

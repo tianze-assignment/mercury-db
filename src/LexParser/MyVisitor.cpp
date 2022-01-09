@@ -253,7 +253,7 @@ antlrcpp::Any MyVisitor::visitValue(SQLParser::ValueContext *context) {
         float value = std::stof(f->getText());
         uint8_t *bytes = static_cast<uint8_t *>(static_cast<void *>(&value));
         v.bytes = vector<uint8_t>(bytes, bytes + 4);
-    }else if(auto s = context->String()){
+    }else if(auto s = context->String()) {
         v.type = VARCHAR;
         string value = s->getText();
         value.erase(0, 1); value.pop_back();
@@ -279,11 +279,19 @@ antlrcpp::Any MyVisitor::visitWhere_operator_expression(SQLParser::Where_operato
 }
 
 antlrcpp::Any MyVisitor::visitWhere_operator_select(SQLParser::Where_operator_selectContext *context) {
-    return antlrcpp::Any(0);
+    Condition cond;
+    cond.a = context->column()->accept(this).as<QueryCol>();
+    cond.op = context->operator_()->accept(this).as<CMP_OP>();
+    cond.b_val = context->select_table()->accept(this).as<Query>().to_value();
+    return antlrcpp::Any(cond);
 }
 
 antlrcpp::Any MyVisitor::visitWhere_null(SQLParser::Where_nullContext *context) {
-    return antlrcpp::Any(0);
+    Condition cond;
+    cond.a = context->column()->accept(this).as<QueryCol>();
+    cond.op = IS;
+    cond.b_val.type = context->children.size() == 3 ? NULL_TYPE : INT;
+    return antlrcpp::Any(cond);
 }
 
 antlrcpp::Any MyVisitor::visitWhere_in_list(SQLParser::Where_in_listContext *context) {
@@ -295,7 +303,13 @@ antlrcpp::Any MyVisitor::visitWhere_in_select(SQLParser::Where_in_selectContext 
 }
 
 antlrcpp::Any MyVisitor::visitWhere_like_string(SQLParser::Where_like_stringContext *context) {
-    return antlrcpp::Any(0);
+    Condition cond;
+    cond.a = context->column()->accept(this).as<QueryCol>();
+    cond.op = LIKE;
+    cond.b_val.type = VARCHAR;
+    string s = context->String()->getText();
+    cond.b_val.bytes = vector<uint8_t>(s.begin()+1, s.end()-1);
+    return antlrcpp::Any(cond);
 }
 
 antlrcpp::Any MyVisitor::visitColumn(SQLParser::ColumnContext *context) {
