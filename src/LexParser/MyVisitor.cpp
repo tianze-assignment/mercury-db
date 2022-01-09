@@ -2,6 +2,7 @@
 
 #include <cstdio>
 #include <exception>
+#include <ctime>
 
 #include "Schema.h"
 #include "Query.h"
@@ -123,8 +124,13 @@ antlrcpp::Any MyVisitor::visitUpdate_table(SQLParser::Update_tableContext *conte
 }
 
 antlrcpp::Any MyVisitor::visitSelect_table_(SQLParser::Select_table_Context *context) {
+    clock_t start = clock();
     auto query = context->select_table()->accept(this).as<Query>();
-    return antlrcpp::Any(string_to_char(query.to_str()));
+    double use_time = (double)(clock() - start) / CLOCKS_PER_SEC;
+    string res = query.to_str() + "\n";
+    int rows = query.value_lists.size();
+    res += DBManager::rows_text(rows) + " in set (" + to_string(use_time) + " Sec)";
+    return antlrcpp::Any(string_to_char(res));
 }
 
 antlrcpp::Any MyVisitor::visitSelect_table(SQLParser::Select_tableContext *context) {

@@ -7,7 +7,7 @@ int FileSystem::count = 0;
 
 void FileSystem::init() {
     if (!count++) {        
-        MyBitMap::initConst();
+        //MyBitMap::initConst();
         fm = new FileManager();
         bpm = new BufPageManager(fm);
     }

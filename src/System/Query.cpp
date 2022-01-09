@@ -98,6 +98,7 @@ bool Condition::cmp(const Value& a, const Value& b, CMP_OP op) {
 }
 
 string Query::to_str() {
+    if (value_lists.empty()) return "";
     fort::char_table table;
     table << fort::header;
     for (auto col: columns) table << col.first + "." + col.second;

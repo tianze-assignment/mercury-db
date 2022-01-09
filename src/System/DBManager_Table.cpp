@@ -100,7 +100,6 @@ void DBManager::check_column(const NameMap& table_map, const vector<NameMap>& co
         throw DBException((string)"Column \"" + col.first + "." + col.second + "\" does not exist");
 }
 
-
 Value DBManager::get_value(const vector<vector<Value>>& value_lists,
         const NameMap& table_map, const vector<NameMap>& column_maps, const QueryCol& col) {
     int table = table_map.at(col.first);
@@ -162,8 +161,9 @@ Query DBManager::select(vector<QueryCol> cols, vector<string> tables, vector<Con
             for (auto col: query.columns) value_list.push_back(get_value(value_lists, table_map, column_maps, col));
             query.value_lists.push_back(value_list);
         }
-        for (i=its.size()-1; i>=0 && (++its[i]).isEnd(); --i) {
+        for (i=its.size()-1; i >= 0 ; --i) {
             open_record(schemas[i]);
+            if (!(++its[i]).isEnd()) break;
             its[i] = record_handler->begin();
         }
         if (i < 0) break;

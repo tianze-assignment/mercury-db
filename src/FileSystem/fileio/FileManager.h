@@ -10,14 +10,23 @@
 #include "../utils/pagedef.h"
 #include "../utils/MyBitMap.h"
 
+#include <vector>
+#include <map>
+
 //#include "../MyLinkList.h"
 using namespace std;
 class FileManager {
 private:
 	//FileTable* ftable;
+	/*
 	int fd[MAX_FILE_NUM];
 	MyBitMap* fm;
 	MyBitMap* tm;
+	*/
+	vector<int> files;
+	vector<string> fileNames;
+	map<string, int> fmap;
+
 	int _createFile(const char* name) {
 		FILE* f = fopen(name, "a+");
 		if (f == NULL) {
@@ -27,12 +36,14 @@ private:
 		fclose(f);
 		return 0;
 	}
-	int _openFile(const char* name, int fileID) {
+	int _openFile(const char* name) {//, int fileID) {
 		int f = open(name, O_RDWR);
 		if (f == -1) {
 			return -1;
 		}
-		fd[fileID] = f;
+		files.push_back(f);
+		fileNames.push_back(name);
+		//fd[fileID] = f;
 		return 0;
 	}
 public:
@@ -40,8 +51,10 @@ public:
 	 * FilManager构造函数
 	 */
 	FileManager() {
+		/*
 		fm = new MyBitMap(MAX_FILE_NUM, 1);
 		tm = new MyBitMap(MAX_TYPE_NUM, 1);
+		*/
 	}
 	/*
 	 * @函数名writePage
@@ -53,7 +66,8 @@ public:
 	 * 返回:成功操作返回0
 	 */
 	int writePage(int fileID, int pageID, BufType buf, int off) {
-		int f = fd[fileID];
+		//int f = fd[fileID];
+		int f = files[fileID];
 		off_t offset = pageID;
 		offset = (offset << PAGE_SIZE_IDX);
 		off_t error = lseek(f, offset, SEEK_SET);
@@ -75,7 +89,8 @@ public:
 	 */
 	int readPage(int fileID, int pageID, BufType buf, int off) {
 		//int f = fd[fID[type]];
-		int f = fd[fileID];
+		//int f = fd[fileID];
+		int f = files[fileID];
 		off_t offset = pageID;
 		offset = (offset << PAGE_SIZE_IDX);
 		off_t error = lseek(f, offset, SEEK_SET);
@@ -93,8 +108,12 @@ public:
 	 * 返回:操作成功，返回0
 	 */
 	int closeFile(int fileID) {
+		/*
 		fm->setBit(fileID, 1);
 		int f = fd[fileID];
+		*/
+		fmap.erase(fmap.find(fileNames[fileID]));
+		int f = files[fileID];
 		close(f);
 		return 0;
 	}
@@ -116,11 +135,19 @@ public:
 	 * 返回:如果成功打开，在fileID中存储为该文件分配的id，返回true，否则返回false
 	 */
 	bool openFile(const char* name, int& fileID) {
+		/*
 		fileID = fm->findLeftOne();
 		fm->setBit(fileID, 0);
 		_openFile(name, fileID);
+		*/
+		if (fmap.find(name) != fmap.end()) fileID = fmap[name];
+		else {
+			fmap[name] = fileID = files.size();
+			_openFile(name);
+		}
 		return true;
 	}
+	/*
 	int newType() {
 		int t = tm->findLeftOne();
 		tm->setBit(t, 0);
@@ -129,9 +156,12 @@ public:
 	void closeType(int typeID) {
 		tm->setBit(typeID, 1);
 	}
+	*/
 	void shutdown() {
+		/*
 		delete tm;
 		delete fm;
+		*/
 	}
 	~FileManager() {
 		this->shutdown();

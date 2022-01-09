@@ -38,7 +38,6 @@ class DBManager {
 
     string file_name(const Schema& schema);
     void open_record(const Schema& schema);
-    string rows_text(int row);
     Schema& get_schema(const string& table_name);
     Record to_record(const vector<Value>& value_list, const Schema& schema);
     vector<Value> to_value_list(const Record& record, const Schema& schema);
@@ -62,6 +61,7 @@ class DBManager {
 	string drop_table(string name);
 	string describe_table(string name);
 
+    static string rows_text(int row);
 	string insert(string table_name, vector<vector<Value>> &value_lists);
     Query select(vector<QueryCol> cols, vector<string> tables, vector<Condition> conditions);
 };
