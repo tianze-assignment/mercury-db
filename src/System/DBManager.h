@@ -2,6 +2,7 @@
 
 #include <string>
 #include <vector>
+#include <map>
 #include <unordered_map>
 #include <filesystem>
 
@@ -13,6 +14,9 @@
 using namespace std;
 
 #define DB_DIR "databases"
+#define MANAGER_NAME "MecuryDB"
+
+typedef map<string,int> NameMap;
 
 class DBException : public exception {
     string message;
@@ -28,11 +32,19 @@ class DBManager {
     RecordHandler *record_handler;
     IndexHandler *index_handler;
     unordered_map<string, Schema> schemas;
+
+    void check_db();
+    void check_db_empty();
+
     string file_name(const Schema& schema);
     void open_record(const Schema& schema);
     string rows_text(int row);
-    void check_db();
     Schema& get_schema(const string& table_name);
+    Record to_record(const vector<Value>& value_list, const Schema& schema);
+    vector<Value> to_value_list(const Record& record, const Schema& schema);
+    void check_column(const NameMap& table_map, const vector<NameMap>& column_maps, const QueryCol& col);
+    Value get_value(const vector<vector<Value>>& value_lists,
+            const NameMap& table_map, const vector<NameMap>& column_maps, const QueryCol& col);
 
    public:
     DBManager();
@@ -51,5 +63,5 @@ class DBManager {
 	string describe_table(string name);
 
 	string insert(string table_name, vector<vector<Value>> &value_lists);
-    Query select(vector<QueryCol> cols, vector<string> tables, vector<Condition> conds);
+    Query select(vector<QueryCol> cols, vector<string> tables, vector<Condition> conditions);
 };

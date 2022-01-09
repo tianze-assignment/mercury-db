@@ -124,7 +124,7 @@ antlrcpp::Any MyVisitor::visitUpdate_table(SQLParser::Update_tableContext *conte
 
 antlrcpp::Any MyVisitor::visitSelect_table_(SQLParser::Select_table_Context *context) {
     auto query = context->select_table()->accept(this).as<Query>();
-    return antlrcpp::Any(query.to_str());
+    return antlrcpp::Any(string_to_char(query.to_str()));
 }
 
 antlrcpp::Any MyVisitor::visitSelect_table(SQLParser::Select_tableContext *context) {

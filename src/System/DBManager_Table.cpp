@@ -1,17 +1,17 @@
-#include <filesystem>
-#include <unordered_set>
+#include <vector>
+#include <map>
 
 #include "DBManager.h"
 #include "Query.h"
 
-namespace fs = std::filesystem;
+using namespace std;
 
 string DBManager::file_name(const Schema& schema) {
     return string(DB_DIR) + "/" + current_dbname + "/" + schema.table_name + "/" + schema.table_name;
 }
 
 void DBManager::open_record(const Schema& schema) {
-    record_handler->openFile((file_name(schema) + "data").data(), schema.record_type());
+    record_handler->openFile((file_name(schema) + ".data").data(), schema.record_type());
 }
 
 string DBManager::rows_text(int row) {
@@ -23,70 +23,64 @@ Schema& DBManager::get_schema(const string& table_name) {
     return schemas[table_name];
 }
 
-string DBManager::create_table(Schema &schema) {
-    check_db();
-    // check schema
-    unordered_set<string> column_names;
-    for (auto &column : schema.columns) {
-        if (column_names.find(column.name) == column_names.end())
-            column_names.insert(column.name);
-        else
-            return "Duplicate column name: " + column.name;
-		if(column.has_default){
-			if(column.default_value.type == NULL_TYPE){
-				if(column.not_null) return "Default is NULL but NOT NULL is enabled";
-			}else{
-				if(column.type != column.default_value.type) return "Default value type and field type of column '" + column.name + "' are not identical";
-			}
-		}
-    }
-    for (auto &pk_column : schema.pk.pks) {
-        if (column_names.find(pk_column) == column_names.end()) return "Primary key field not declared: " + pk_column;
-    }
-    for (auto &fk : schema.fks) {
-        for (auto &fk_column : fk.fks) {
-            if (column_names.find(fk_column) == column_names.end()) return "Foreign key field not declared: " + fk_column;
+Record DBManager::to_record(const vector<Value>& value_list, const Schema& schema) {
+    if (value_list.size() != schema.columns.size()) throw DBException("Invalid number of values");
+    Record record(schema.record_type());
+    int int_count = 0, varchar_count = 0;
+    for (int i = 0; i < schema.columns.size(); ++i) {
+        auto& column = schema.columns[i];
+        auto& value = value_list[i];
+        if (value.type == NULL_TYPE) {
+            if (column.not_null) throw DBException((string)"Column \"" + column.name + "\" should not be NULL");
+            if (column.type == VARCHAR) record.varchar_null[varchar_count++] = true;
+            else record.int_null[int_count++] = true; 
         }
-        if (schemas.find(fk.ref_table) == schemas.end()) return "Foreign key ref table not found: " + fk.ref_table;
-        Schema &ref_table_schema = schemas[fk.ref_table]; 
-
-        for (auto &fk_ref_col : fk.ref_fks) {
-            if (ref_table_schema.find_column(fk_ref_col) == ref_table_schema.columns.size())
-                return "Foreign key ref field not found: " + fk_ref_col;
+        else if (value.type != column.type && !(column.type == FLOAT && value.type == INT))
+            throw DBException((string)"Invalid value type of Column \"" + column.name + "\"");
+        else if (value.type == VARCHAR) {
+            record.varchar_null[varchar_count] = false;
+            if (value.bytes.size() > column.varchar_len)
+                throw DBException((string)"Varchar \"" + column.name + "\" too long");
+            record.varchar_data[varchar_count++] = string(value.bytes.begin(), value.bytes.end()).data();
+        }
+        else {
+            record.int_null[int_count] = false;
+            if (column.type == FLOAT && value.type == INT) {
+                float v = *((int*)value.bytes.data());
+                record.int_data[int_count++] = *((int*)&v);
+            }
+            else record.int_data[int_count++] = *((int*)value.bytes.data());
         }
     }
-    // create directory
-    std::error_code code;
-    bool suc = fs::create_directories(db_dir / current_dbname / schema.table_name, code);
-    if (!suc) {
-        if (code.value() == 0) return "Table already exists";
-        return code.message();
+    return record;
+}
+
+vector<Value> DBManager::to_value_list(const Record& record, const Schema& schema) {
+    vector<Value> value_list;
+    int int_count = 0, varchar_count = 0;
+    for (auto column: schema.columns) {
+        Value v;
+        if (column.type == VARCHAR) {
+            if (record.varchar_null[varchar_count]) v.type = NULL_TYPE;
+            else {
+                v.type = VARCHAR;
+                string s(record.varchar_data[varchar_count]);
+                v.bytes = vector<uint8_t>(s.begin(), s.end());
+            }
+            ++varchar_count;
+        }
+        else {
+            if (record.int_null[int_count]) v.type = NULL_TYPE;
+            else {
+                v.type = column.type;
+                uint8_t* data = (uint8_t*)(&record.int_data[int_count]);
+                v.bytes = vector<uint8_t>(data, data+4);
+            }
+            ++int_count;
+        }
+        value_list.push_back(v);
     }
-    // write
-    suc = schema.write(current_dbname);
-    if (!suc) return "Writing failed";
-
-    this->schemas[schema.table_name] = schema;
-
-    record_handler->createFile((file_name(schema) + ".data").data(), schema.record_type());
-
-    return "Created";
-}
-
-string DBManager::drop_table(string name){
-    check_db();
-	// check table
-	auto dir = db_dir / current_dbname / name;
-	std::error_code code;
-	auto suc = fs::remove_all(dir, code);
-	if(suc) return "Removed";
-	if(code.value() == 0) return "Table does not exist";
-	return code.message();
-}
-
-string DBManager::describe_table(string name){
-    check_db();
-    return get_schema(name).to_str();
+    return value_list;
 }
 
 string DBManager::insert(string table_name, vector<vector<Value>> &value_lists){
@@ -94,36 +88,85 @@ string DBManager::insert(string table_name, vector<vector<Value>> &value_lists){
     Schema& schema = get_schema(table_name);
     RecordType type = schema.record_type();
     open_record(schema);
-
-    for(auto value_list: value_lists) {
-        if (value_list.size() != schema.columns.size()) return "Invalid number of values";
-        Record record(type);
-        int int_count = 0, varchar_count = 0;
-        for (int i = 0; i < schema.columns.size(); ++i) {
-            auto& column = schema.columns[i];
-            auto& value = value_list[i];
-            if (value.type == NULL_TYPE) {
-                if (column.not_null) return (string)"Column """ + column.name + """ should not be NULL";
-                if (column.type == VARCHAR) record.varchar_null[varchar_count++] = true;
-                else record.int_null[int_count++] = true; 
-            }
-            else if (value.type != column.type) return (string)"Invalid value type of Column """ + column.name + """";
-            else if (value.type == VARCHAR) {
-                record.varchar_null[varchar_count] = false;
-                record.varchar_data[varchar_count++] = (char*)value.bytes.data();
-            }
-            else {
-                record.int_null[int_count] = false;
-                record.int_data[int_count++] = *((int*)value.bytes.data());
-            }
-        }
-        record_handler->ins(record);
-    }
+    for(auto value_list: value_lists) record_handler->ins(to_record(value_list, schema));
     return "Insert " + rows_text(value_lists.size()) + " OK";
 }
 
-Query DBManager::select(vector<QueryCol> cols, vector<string> tables, vector<Condition> conds) {
-    Query query;
+void DBManager::check_column(const NameMap& table_map, const vector<NameMap>& column_maps, const QueryCol& col) {
+    if (table_map.find(col.first) == table_map.end())
+        throw DBException((string)"Table \"" + col.first + "\" does not exist");
+    int table = table_map.at(col.first);
+    if (column_maps[table].find(col.second) == column_maps[table].end())
+        throw DBException((string)"Column \"" + col.first + "." + col.second + "\" does not exist");
+}
+
+
+Value DBManager::get_value(const vector<vector<Value>>& value_lists,
+        const NameMap& table_map, const vector<NameMap>& column_maps, const QueryCol& col) {
+    int table = table_map.at(col.first);
+    int column = column_maps[table].at(col.second);
+    return value_lists[table][column];
+}
+
+Query DBManager::select(vector<QueryCol> cols, vector<string> tables, vector<Condition> conditions) {
     check_db();
+    Query query;
+    vector<Schema> schemas;
+    NameMap table_map;
+    vector<NameMap> column_maps;
+    for (int i = 0; i < tables.size(); ++i) {
+        schemas.push_back(get_schema(tables[i]));
+        if (table_map.find(tables[i]) != table_map.end()) throw DBException("Duplicate table \"" + tables[i] + "\"");
+        table_map[tables[i]] = i;
+        column_maps.push_back(NameMap());
+        for (int j = 0; j < schemas[i].columns.size(); ++j)
+            column_maps[i][schemas[i].columns[j].name] = j;
+    }
+    if (cols.empty()) {
+        for (auto schema: schemas) for (auto column: schema.columns)
+            query.columns.push_back(make_pair(schema.table_name, column.name));
+    }
+    else {
+        for (auto col: cols) {
+            check_column(table_map, column_maps, col);
+            query.columns.push_back(col);
+        }
+    }
+    for (auto cond: conditions) {
+        check_column(table_map, column_maps, cond.a);
+        if (!cond.b_col.second.empty()) check_column(table_map, column_maps, cond.b_col);
+    }
+    vector<RecordHandler::Iterator> its;
+    for (auto schema: schemas) {
+        open_record(schema);
+        its.push_back(record_handler->begin());
+        if (its.back().isEnd()) return query;
+    }
+    while (true) {
+        int i;
+        vector<vector<Value>> value_lists;
+        for (i = 0; i < its.size(); ++i) {
+            open_record(schemas[i]);
+            value_lists.push_back(to_value_list(*its[i], schemas[i]));
+        }
+        for (i = 0; i < conditions.size(); ++i) {
+            Condition& cond = conditions[i];
+            Value a = get_value(value_lists, table_map, column_maps, cond.a);
+            Value b;
+            if (cond.b_col.second.empty()) b = cond.b_val;
+            else b = get_value(value_lists, table_map, column_maps, cond.b_col);
+            if (!Condition::cmp(a, b, cond.op)) break;
+        }
+        if (i == conditions.size()) {
+            vector<Value> value_list;
+            for (auto col: query.columns) value_list.push_back(get_value(value_lists, table_map, column_maps, col));
+            query.value_lists.push_back(value_list);
+        }
+        for (i=its.size()-1; i>=0 && (++its[i]).isEnd(); --i) {
+            open_record(schemas[i]);
+            its[i] = record_handler->begin();
+        }
+        if (i < 0) break;
+    }
     return query;
 }

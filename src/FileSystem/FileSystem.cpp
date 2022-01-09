@@ -20,3 +20,7 @@ void FileSystem::release() {
         delete fm;
     }
 }
+
+void FileSystem::save() {
+    bpm->close();
+}

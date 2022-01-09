@@ -22,6 +22,9 @@ struct Condition{
     QueryCol a,b_col;
     Value b_val;
     CMP_OP op;
+    static int cmpVarchar(const Value& a, const Value& b);
+    static int cmpIntOrFloat(const Value& a, const Value& b);
+    static bool cmp(const Value& a, const Value& b, CMP_OP op);
 };
 
 class Query {

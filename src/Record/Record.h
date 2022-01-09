@@ -23,7 +23,7 @@ struct Record{
         for (int i = 0; i < type.num_int; ++i)
             int_null[i] ? (os << "NULL ") : (os << int_data[i] << " ");
         for (int i = 0; i < type.num_varchar; ++i)
-            varchar_null[i] ? (os << "NULL ") : (os << """" << varchar_data[i] << """ ");
+            varchar_null[i] ? (os << "NULL ") : (os << "\"" << varchar_data[i] << "\" ");
         os << std::endl;
     }
 };

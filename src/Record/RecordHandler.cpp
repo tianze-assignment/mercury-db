@@ -35,7 +35,7 @@ int RecordHandler::openFile(const char* fileName, const RecordType& type) {
     int flag = 0;
     flag |= !_fm->openFile(fileName, _fileID);
     _type = type;
-    for (_end = begin(); !_end.isEnd(); ++_end);
+    _end = Iterator(this, -1, 0);
     return flag;
 }
 
@@ -143,6 +143,7 @@ void RecordHandler::_setRecord(int offset, const Record& record) {
 }
 
 RecordHandler::Iterator RecordHandler::ins(const Record& record) {
+    if (_end._page < 0) for (_end = begin(); !_end.isEnd(); ++_end);
     _openPage(_end._page);
     int offset = _getOffset(_end._slot) & ~FLAG_BITS;
     int len = _getLen(record);
