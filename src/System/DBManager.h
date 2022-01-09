@@ -14,7 +14,7 @@
 using namespace std;
 
 #define DB_DIR "databases"
-#define MANAGER_NAME "MecuryDB"
+#define MANAGER_NAME "MercuryDB"
 
 typedef map<string,int> NameMap;
 

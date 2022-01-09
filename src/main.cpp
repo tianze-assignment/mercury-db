@@ -26,7 +26,7 @@ int main() {
 
     while (true) {
         string current_db = db_manager->current_dbname;
-        string indent_str = current_db.empty() ? "MecuryDB" : current_db;
+        string indent_str = current_db.empty() ? MANAGER_NAME : current_db;
         int indent_len = indent_str.length();
         // cout << indent_str << "> ";
         string input;

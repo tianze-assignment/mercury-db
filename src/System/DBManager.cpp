@@ -23,7 +23,7 @@ void DBManager::check_db() {
 }
 
 void DBManager::check_db_empty() {
-    if (!current_dbname.empty()) throw DBException("Please input command \"USE MecuryDB\" first");
+    if (!current_dbname.empty()) throw DBException(string("Please input command \"USE ") + MANAGER_NAME + "\" first");
 }
 
 string DBManager::create_db(string &name) {
@@ -117,10 +117,7 @@ string DBManager::create_table(Schema &schema) {
         if (schemas.find(fk.ref_table) == schemas.end()) return "Foreign key ref table not found: " + fk.ref_table;
         Schema &ref_table_schema = schemas[fk.ref_table]; 
 
-        for (auto &fk_ref_col : fk.ref_fks) {
-            if (ref_table_schema.find_column(fk_ref_col) == ref_table_schema.columns.size())
-                return "Foreign key ref field not found: " + fk_ref_col;
-        }
+        if(fk.ref_fks != ref_table_schema.pk.pks) return "Foreign key ref columns do not match primary key";
     }
     // create directory
     std::error_code code;
@@ -128,6 +125,17 @@ string DBManager::create_table(Schema &schema) {
     if (!suc) {
         if (code.value() == 0) return "Table already exists";
         return code.message();
+    }
+    // add index for primary key if all fields are INT
+    bool pk_all_int = schema.pk.pks.empty() ? false : true;
+    for (auto &pk_column : schema.pk.pks) {
+        if(schema.columns[schema.find_column(pk_column)].type != INT)
+            pk_all_int = false;
+    }
+    if(pk_all_int){
+        schema.indexes.push_back(schema.pk.pks);
+        auto index_path = db_dir/current_dbname/schema.table_name/(schema.table_name+"0"+".index"); // "0" corresponds to index at vector indexes
+        index_handler->createIndex(index_path.c_str(), schema.pk.pks.size());
     }
     // write
     suc = schema.write(current_dbname);
