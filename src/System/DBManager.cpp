@@ -155,10 +155,11 @@ string DBManager::drop_table(string name){
 	auto dir = db_dir / current_dbname / name;
 	std::error_code code;
 	auto suc = fs::remove_all(dir, code);
-	if(suc) return "Removed";
+	if(suc) {
+        schemas.erase(schemas.find(name));
+        return "Removed";
+    }
 	if(code.value() == 0) return "Table does not exist";
-
-    schemas.erase(schemas.find(name));
 
 	return code.message();
 }

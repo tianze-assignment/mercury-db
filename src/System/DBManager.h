@@ -64,4 +64,6 @@ class DBManager {
 
 	string insert(string table_name, vector<vector<Value>> &value_lists);
     Query select(vector<QueryCol> cols, vector<string> tables, vector<Condition> conditions);
+
+    string alter_add_index(string &table_name, vector<string> &fields);
 };
