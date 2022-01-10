@@ -35,6 +35,7 @@ public:
 	Iterator begin();
 	Iterator lowerBound(const int* keys);
 	Iterator upperBound(const int* keys);
+	Iterator find(const int* keys);
 
 private:
 	FileManager* _fm;

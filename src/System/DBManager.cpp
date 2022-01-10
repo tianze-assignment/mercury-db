@@ -157,7 +157,8 @@ string DBManager::create_table(Schema &schema) {
 
     this->schemas[schema.table_name] = schema;
 
-    record_handler->createFile((file_name(schema) + ".data").data(), schema.record_type());
+    if (record_handler->createFile((file_name(schema) + ".data").data(), schema.record_type()))
+        throw DBException("Create file failed");
     FileSystem::save();
 
     return "Created";

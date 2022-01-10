@@ -31,8 +31,8 @@ string DBManager::alter_add_index(string &table_name, vector<string> &fields) {
     // write index
     auto table_path = db_dir / current_dbname / table_name;
     auto index_path = table_path / (table_name + to_string(schema.indexes.size() - 1) + ".index");
-    index_handler->createIndex(index_path.c_str(), fields.size());
-    FileSystem::save();
+    if ( index_handler->createIndex(index_path.c_str(), fields.size()))
+        throw DBException("Create file failed");
     auto data_path = table_path / (table_name + ".data");
     open_record(schema);
     for (auto i = record_handler->begin(); !i.isEnd(); ++i) {
@@ -49,6 +49,7 @@ string DBManager::alter_add_index(string &table_name, vector<string> &fields) {
         if (has_null) continue;
         index_handler->ins(ints.data(), i.toInt());
     }
+    FileSystem::save();
     return "Added";
 }
 
@@ -205,21 +206,12 @@ string DBManager::alter_add_fk(string &table_name, string &fk_name, string &ref_
             ints.push_back(*((int *)(&values[column_index].bytes[0])));
         }
         if (has_null) continue;
-        auto it = index_handler->lowerBound(ints.data());
-        open_record(ref_schema);
-        auto record = *(RecordHandler::Iterator(record_handler, *it));
-        auto ref_values = to_value_list(record, ref_schema);
-        vector<int> ref_ints;
-        for (auto &ref_column_index : ref_column_indexes) {
-            ref_ints.push_back(*((int *)(&ref_values[ref_column_index].bytes[0])));
-        }
-        if (ints != ref_ints) {
+        auto it = index_handler->find(ints.data());
+        if (it.isEnd()) {
             stringstream ss;
             copy(ints.begin(), ints.end(), ostream_iterator<int>(ss, ", "));
             throw DBException(fmt("Field (%s) in current table is not found in ref table", ss.str().c_str()));
         }
-
-        open_record(schema);
     }
 
 	FK fk;

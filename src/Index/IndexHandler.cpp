@@ -201,6 +201,16 @@ IndexHandler::Iterator IndexHandler::upperBound(const int* keys) {
     return it;
 }
 
+IndexHandler::Iterator IndexHandler::find(const int* keys) {
+    Iterator it = lowerBound(keys);
+    if (it.isEnd()) return it;
+    _openPage(it._stack.back().first);
+    auto dataKeys = _dataKeys(it._stack.back().second);
+    for (int i = 0; i < _numKey; ++i)
+        if (dataKeys[i] != keys[i]) return Iterator(this);
+    return it;
+}
+
 void IndexHandler::_init(int numKey) {
     _numKey = numKey;
     _nodeSize = (PAGE_INT_NUM - EXLEN)/ (numKey + 1) - 1;
