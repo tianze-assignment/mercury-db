@@ -67,4 +67,5 @@ class DBManager {
 
     string alter_add_index(string &table_name, vector<string> &fields);
     string alter_drop_index(string &table_name, vector<string> &fields);
+    string alter_drop_pk(string &table_name, string &pk_name);
 };

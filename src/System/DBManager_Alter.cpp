@@ -1,4 +1,5 @@
 #include "DBManager.h"
+#include "fmt.h"
 
 namespace fs = std::filesystem;
 
@@ -66,7 +67,7 @@ string DBManager::alter_drop_index(string &table_name, vector<string> &fields) {
     // update index filenames
     auto table_path = db_dir / current_dbname / table_name;
     std::error_code err;
-	// Is it ok to delete index file directly?
+    // Is it ok to delete index file directly?
     fs::remove(table_path / (table_name + to_string(pos) + ".index"), err);
     if (err.value() != 0) throw DBException(err.message());
     int max_pos = indexes.size();
@@ -77,5 +78,25 @@ string DBManager::alter_drop_index(string &table_name, vector<string> &fields) {
             err);
         if (err.value() != 0) throw DBException(err.message());
     }
-	return "Dropped";
+    return "Dropped";
+}
+
+string DBManager::alter_drop_pk(string &table_name, string &pk_name) {
+    check_db();
+    auto &schema = get_schema(table_name);
+    if (schema.pk.pks.empty()) throw DBException("No primary key");
+    if (!pk_name.empty() && schema.pk.name != pk_name){
+		string info = fmt("Primary key name '%s' not equal to the original name '%s'", pk_name.c_str(), schema.pk.name.c_str());
+		throw DBException(info);
+	}   
+
+    // delete corresponding index
+    if (find(schema.indexes.begin(), schema.indexes.end(), schema.pk.pks) != schema.indexes.end())
+        this->alter_drop_index(table_name, schema.pk.pks);
+    // delete pk
+    schema.pk.pks.clear();
+    // write
+    bool suc = schema.write(current_dbname);
+    if (!suc) throw DBException("Write schema failed");
+	return "Primary key dropped";
 }
