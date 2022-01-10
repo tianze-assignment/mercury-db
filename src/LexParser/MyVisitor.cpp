@@ -150,7 +150,11 @@ antlrcpp::Any MyVisitor::visitAlter_add_index(SQLParser::Alter_add_indexContext 
 }
 
 antlrcpp::Any MyVisitor::visitAlter_drop_index(SQLParser::Alter_drop_indexContext *context) {
-    return antlrcpp::Any(0);
+    string table_name = context->Identifier()->getText();
+    vector<string> ids = context->identifiers()->accept(this).as<vector<string>>();
+    return antlrcpp::Any(string_to_char(
+        db_manager->alter_drop_index(table_name, ids)
+    ));
 }
 
 antlrcpp::Any MyVisitor::visitAlter_table_drop_pk(SQLParser::Alter_table_drop_pkContext *context) {

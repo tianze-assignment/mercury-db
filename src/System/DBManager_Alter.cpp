@@ -1,5 +1,7 @@
 #include "DBManager.h"
 
+namespace fs = std::filesystem;
+
 string DBManager::alter_add_index(string &table_name, vector<string> &fields) {
     check_db();
     auto &schema = get_schema(table_name);
@@ -42,4 +44,38 @@ string DBManager::alter_add_index(string &table_name, vector<string> &fields) {
         index_handler->ins(ints.data(), i.toInt());
     }
     return "Added";
+}
+
+string DBManager::alter_drop_index(string &table_name, vector<string> &fields) {
+    check_db();
+    auto &schema = get_schema(table_name);
+    auto &indexes = schema.indexes;
+    // check index
+    auto it = find(indexes.begin(), indexes.end(), fields);
+    if (it == indexes.end())
+        throw DBException("Index not found");
+    int pos = it - indexes.begin();
+    // delete
+    indexes.erase(it);
+    // write schema
+    bool suc = schema.write(current_dbname);
+    if (!suc) {
+        indexes.insert(it, fields);
+        throw DBException("Write schema failed");
+    }
+    // update index filenames
+    auto table_path = db_dir / current_dbname / table_name;
+    std::error_code err;
+	// Is it ok to delete index file directly?
+    fs::remove(table_path / (table_name + to_string(pos) + ".index"), err);
+    if (err.value() != 0) throw DBException(err.message());
+    int max_pos = indexes.size();
+    for (int i = pos + 1; i <= max_pos; i++) {
+        fs::rename(
+            table_path / (table_name + to_string(i) + ".index"),
+            table_path / (table_name + to_string(i - 1) + ".index"),
+            err);
+        if (err.value() != 0) throw DBException(err.message());
+    }
+	return "Dropped";
 }
