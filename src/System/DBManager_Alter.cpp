@@ -222,5 +222,14 @@ string DBManager::alter_add_fk(string &table_name, string &fk_name, string &ref_
         open_record(schema);
     }
 
+	FK fk;
+	fk.name = fk_name;
+	fk.fks = fields;
+	fk.ref_table = ref_table_name;
+	fk.ref_fks = ref_fields;
+	schema.fks.push_back(fk);
+	bool suc = schema.write(current_dbname);
+	if(!suc) throw DBException("Write schema failed");
+
     return "Added";
 }
