@@ -100,3 +100,14 @@ string DBManager::alter_drop_pk(string &table_name, string &pk_name) {
     if (!suc) throw DBException("Write schema failed");
 	return "Primary key dropped";
 }
+
+string DBManager::alter_drop_fk(string &table_name, string &fk_name){
+	check_db();
+	auto &schema = get_schema(table_name);
+	int i = schema.find_fk_by_name(fk_name);
+	if(i == schema.fks.size()) throw DBException(fmt("No foreign key '%s'", fk_name.c_str()));
+	schema.fks.erase(schema.fks.begin()+i);
+	bool suc = schema.write(current_dbname);
+	if(!suc) throw DBException("Write schema failed");
+	return "Foreign key dropped";
+}

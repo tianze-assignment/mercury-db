@@ -211,6 +211,14 @@ int Schema::find_column(string &name) {
     return i;
 }
 
+int Schema::find_fk_by_name(string &name){
+    int i = 0;
+    for(; i < this->fks.size(); i++){
+        if(this->fks[i].name == name) break;
+    }
+    return i;
+}
+
 RecordType Schema::record_type() const {
     RecordType res;
     for (auto column : columns) {

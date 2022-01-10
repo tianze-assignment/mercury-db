@@ -167,7 +167,11 @@ antlrcpp::Any MyVisitor::visitAlter_table_drop_pk(SQLParser::Alter_table_drop_pk
 }
 
 antlrcpp::Any MyVisitor::visitAlter_table_drop_foreign_key(SQLParser::Alter_table_drop_foreign_keyContext *context) {
-    return antlrcpp::Any(0);
+    string table_name = context->Identifier()[0]->getText();
+    string fk_name = context->Identifier()[1]->getText();
+    return antlrcpp::Any(string_to_char(
+        db_manager->alter_drop_fk(table_name, fk_name)
+    ));
 }
 
 antlrcpp::Any MyVisitor::visitAlter_table_add_pk(SQLParser::Alter_table_add_pkContext *context) {
