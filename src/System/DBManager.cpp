@@ -1,5 +1,6 @@
 #include <filesystem>
 #include <unordered_set>
+#include <regex>
 #include "fort.hpp"
 
 #include "DBManager.h"
@@ -39,6 +40,7 @@ string DBManager::drop_db(string &name) {
     check_db_empty();
     if (name == MANAGER_NAME) throw DBException("Invalid database name");
     std::error_code code;
+    FileSystem::save();
     auto suc = fs::remove_all(db_dir / name, code);
     if (suc) return "Removed";
     if (code.value() == 0) return "Database does not exist";
@@ -119,6 +121,18 @@ string DBManager::create_table(Schema &schema) {
 
         if(fk.ref_fks != ref_table_schema.pk.pks) return "Foreign key ref columns do not match primary key";
     }
+    // add default fk name
+    int no_name_fk_num = 0;
+    for(auto &fk : schema.fks){
+        if(!fk.name.empty()){
+            smatch sm;
+	        regex_match(fk.name.cbegin(), fk.name.cend(), sm, regex("FK_([[:digit:]]+)"));
+            if(sm.size()) no_name_fk_num = max(no_name_fk_num, stoi(sm[1]) + 1);
+        }
+    }
+    for(auto &fk : schema.fks){
+        if(fk.name.empty()) fk.name = "FK_" + to_string(no_name_fk_num++);
+    }
     // create directory
     std::error_code code;
     bool suc = fs::create_directories(db_dir / current_dbname / schema.table_name, code);
@@ -154,6 +168,7 @@ string DBManager::drop_table(string name){
 	// check table
 	auto dir = db_dir / current_dbname / name;
 	std::error_code code;
+    FileSystem::save();
 	auto suc = fs::remove_all(dir, code);
 	if(suc) {
         schemas.erase(schemas.find(name));

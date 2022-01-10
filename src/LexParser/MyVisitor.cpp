@@ -176,15 +176,33 @@ antlrcpp::Any MyVisitor::visitAlter_table_drop_pk(SQLParser::Alter_table_drop_pk
 }
 
 antlrcpp::Any MyVisitor::visitAlter_table_drop_foreign_key(SQLParser::Alter_table_drop_foreign_keyContext *context) {
-    return antlrcpp::Any(0);
+    string table_name = context->Identifier()[0]->getText();
+    string fk_name = context->Identifier()[1]->getText();
+    return antlrcpp::Any(string_to_char(
+        db_manager->alter_drop_fk(table_name, fk_name)
+    ));
 }
 
 antlrcpp::Any MyVisitor::visitAlter_table_add_pk(SQLParser::Alter_table_add_pkContext *context) {
-    return antlrcpp::Any(0);
+    string table_name = context->Identifier()[0]->getText();
+    string pk_name = context->Identifier()[1]->getText();
+    vector<string> pks;
+    for(auto i : context->identifiers()->Identifier())
+        pks.push_back(i->getText());
+    return antlrcpp::Any(string_to_char(
+        db_manager->alter_add_pk(table_name, pk_name, pks)
+    ));
 }
 
 antlrcpp::Any MyVisitor::visitAlter_table_add_foreign_key(SQLParser::Alter_table_add_foreign_keyContext *context) {
-    return antlrcpp::Any(0);
+    string table_name = context->Identifier()[0]->getText();
+    string fk_name = context->Identifier()[1]->getText();
+    string ref_table_name = context->Identifier()[2]->getText();
+    vector<string> fields = context->identifiers()[0]->accept(this).as<vector<string>>();
+    vector<string> ref_fields = context->identifiers()[1]->accept(this).as<vector<string>>();
+    return antlrcpp::Any(string_to_char(
+        db_manager->alter_add_fk(table_name, fk_name, ref_table_name, fields, ref_fields)
+    ));
 }
 
 antlrcpp::Any MyVisitor::visitAlter_table_add_unique(SQLParser::Alter_table_add_uniqueContext *context) {
