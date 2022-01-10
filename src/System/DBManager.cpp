@@ -40,6 +40,7 @@ string DBManager::drop_db(string &name) {
     check_db_empty();
     if (name == MANAGER_NAME) throw DBException("Invalid database name");
     std::error_code code;
+    FileSystem::save();
     auto suc = fs::remove_all(db_dir / name, code);
     if (suc) return "Removed";
     if (code.value() == 0) return "Database does not exist";
@@ -167,6 +168,7 @@ string DBManager::drop_table(string name){
 	// check table
 	auto dir = db_dir / current_dbname / name;
 	std::error_code code;
+    FileSystem::save();
 	auto suc = fs::remove_all(dir, code);
 	if(suc) {
         schemas.erase(schemas.find(name));

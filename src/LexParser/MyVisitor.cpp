@@ -186,7 +186,14 @@ antlrcpp::Any MyVisitor::visitAlter_table_add_pk(SQLParser::Alter_table_add_pkCo
 }
 
 antlrcpp::Any MyVisitor::visitAlter_table_add_foreign_key(SQLParser::Alter_table_add_foreign_keyContext *context) {
-    return antlrcpp::Any(0);
+    string table_name = context->Identifier()[0]->getText();
+    string fk_name = context->Identifier()[1]->getText();
+    string ref_table_name = context->Identifier()[2]->getText();
+    vector<string> fields = context->identifiers()[0]->accept(this).as<vector<string>>();
+    vector<string> ref_fields = context->identifiers()[1]->accept(this).as<vector<string>>();
+    return antlrcpp::Any(string_to_char(
+        db_manager->alter_add_fk(table_name, fk_name, ref_table_name, fields, ref_fields)
+    ));
 }
 
 antlrcpp::Any MyVisitor::visitAlter_table_add_unique(SQLParser::Alter_table_add_uniqueContext *context) {

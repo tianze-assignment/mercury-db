@@ -70,4 +70,5 @@ class DBManager {
     string alter_drop_pk(string &table_name, string &pk_name);
     string alter_drop_fk(string &table_name, string &fk_name);
     string alter_add_pk(string &table_name, string &pk_name, vector<string> &pks);
+    string alter_add_fk(string &table_name, string &fk_name, string &ref_table_name, vector<string> &fields, vector<string> &ref_fields);
 };
