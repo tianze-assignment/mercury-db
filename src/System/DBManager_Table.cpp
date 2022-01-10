@@ -1,5 +1,6 @@
 #include <vector>
 #include <map>
+#include <ctime>
 
 #include "DBManager.h"
 #include "Query.h"
@@ -86,15 +87,96 @@ vector<Value> DBManager::to_value_list(const Record& record, const Schema& schem
 string DBManager::insert(string table_name, vector<vector<Value>> &value_lists){
     check_db();
     Schema& schema = get_schema(table_name);
-    RecordType type = schema.record_type();
+    clock_t start = clock();
     open_record(schema);
     for(auto value_list: value_lists) record_handler->ins(to_record(value_list, schema));
-    return "Insert " + rows_text(value_lists.size()) + " OK";
+    double use_time = (double)(clock() - start) / CLOCKS_PER_SEC;
+    return "Insert " + rows_text(value_lists.size()) + " OK (" + to_string(use_time) + " Sec)";
+}
+
+string DBManager::delete_(string table_name, vector<Condition> conditions) {
+    check_db();
+    Schema& schema = get_schema(table_name);
+    clock_t start = clock();
+    open_record(schema);
+    NameMap column_map;
+    for (int i = 0; i < schema.columns.size(); ++i)
+        column_map[schema.columns[i].name] = i;
+    for (auto cond: conditions) {
+        check_column(table_name, column_map, cond.a);
+        if (!cond.b_col.second.empty()) check_column(table_name, column_map, cond.b_col);
+    }
+    int count = 0;
+    for (auto it = record_handler->begin(); !it.isEnd(); ) {
+        auto value_list = to_value_list(*it, schema);
+        int i;
+        for (i = 0; i < conditions.size(); ++i) {
+            Condition& cond = conditions[i];
+            Value a = value_list[column_map[cond.a.second]];
+            Value b;
+            if (cond.b_col.second.empty()) b = cond.b_val;
+            else b = value_list[column_map[cond.b_col.second]];
+            if (!Condition::cmp(a, b, cond.op)) break;
+        }
+        if (i == conditions.size()) {
+            ++count;
+            record_handler->del(it++);
+        }
+        else ++it;
+    }
+    double use_time = (double)(clock() - start) / CLOCKS_PER_SEC;
+    return "Delete " + rows_text(count) + " OK (" + to_string(use_time) + " Sec)";
+}
+
+string DBManager::update(string table_name, vector<pair<string,Value>> assignments, vector<Condition> conditions) {
+    check_db();
+    Schema& schema = get_schema(table_name);
+    clock_t start = clock();
+    open_record(schema);
+    NameMap column_map;
+    for (int i = 0; i < schema.columns.size(); ++i)
+        column_map[schema.columns[i].name] = i;
+    for (auto assignment: assignments)
+        if (column_map.find(assignment.first) == column_map.end())
+            throw DBException((string)"Column \"" + assignment.first + "\" does not exist");
+    for (auto cond: conditions) {
+        check_column(table_name, column_map, cond.a);
+        if (!cond.b_col.second.empty()) check_column(table_name, column_map, cond.b_col);
+    }
+    int count = 0;
+    for (auto it = record_handler->begin(); !it.isEnd(); ) {
+        auto value_list = to_value_list(*it, schema);
+        int i;
+        for (i = 0; i < conditions.size(); ++i) {
+            Condition& cond = conditions[i];
+            Value a = value_list[column_map[cond.a.second]];
+            Value b;
+            if (cond.b_col.second.empty()) b = cond.b_val;
+            else b = value_list[column_map[cond.b_col.second]];
+            if (!Condition::cmp(a, b, cond.op)) break;
+        }
+        if (i == conditions.size()) {
+            ++count;
+            for (auto assignment: assignments)
+                value_list[column_map[assignment.first]] = assignment.second;
+            record_handler->upd(it++, to_record(value_list, schema));
+        }
+        else ++it;
+    }
+    double use_time = (double)(clock() - start) / CLOCKS_PER_SEC;
+    return "Update " + rows_text(count) + " OK (" + to_string(use_time) + " Sec)";
+}
+
+void DBManager::check_column(const string& table_name, const NameMap& column_map, const QueryCol& col) {
+    if (col.first != table_name)
+        throw DBException((string)"Table \"" + col.first + "\" has not been selected");
+    if (column_map.find(col.second) == column_map.end())
+        throw DBException((string)"Column \"" + col.first + "." + col.second + "\" does not exist");
 }
 
 void DBManager::check_column(const NameMap& table_map, const vector<NameMap>& column_maps, const QueryCol& col) {
     if (table_map.find(col.first) == table_map.end())
-        throw DBException((string)"Table \"" + col.first + "\" does not exist");
+        throw DBException((string)"Table \"" + col.first + "\" has not been selected");
     int table = table_map.at(col.first);
     if (column_maps[table].find(col.second) == column_maps[table].end())
         throw DBException((string)"Column \"" + col.first + "." + col.second + "\" does not exist");

@@ -41,6 +41,7 @@ class DBManager {
     Schema& get_schema(const string& table_name);
     Record to_record(const vector<Value>& value_list, const Schema& schema);
     vector<Value> to_value_list(const Record& record, const Schema& schema);
+    void check_column(const string& table_name, const NameMap& column_map, const QueryCol& col);
     void check_column(const NameMap& table_map, const vector<NameMap>& column_maps, const QueryCol& col);
     Value get_value(const vector<vector<Value>>& value_lists,
             const NameMap& table_map, const vector<NameMap>& column_maps, const QueryCol& col);
@@ -63,6 +64,8 @@ class DBManager {
 
     static string rows_text(int row);
 	string insert(string table_name, vector<vector<Value>> &value_lists);
+    string delete_(string table_name, vector<Condition> conditions);
+    string update(string table_name, vector<pair<string,Value>> assignments, vector<Condition> conditions);
     Query select(vector<QueryCol> cols, vector<string> tables, vector<Condition> conditions);
 
     string alter_add_index(string &table_name, vector<string> &fields);

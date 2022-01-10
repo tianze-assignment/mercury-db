@@ -116,11 +116,20 @@ antlrcpp::Any MyVisitor::visitInsert_into_table(SQLParser::Insert_into_tableCont
 }
 
 antlrcpp::Any MyVisitor::visitDelete_from_table(SQLParser::Delete_from_tableContext *context) {
-    return antlrcpp::Any(0);
+    string table_name = context->Identifier()->getText();
+    auto conditions = context->where_and_clause()->accept(this).as<vector<Condition>>();
+    return antlrcpp::Any(string_to_char(
+        this->db_manager->delete_(table_name, conditions)
+    ));
 }
 
 antlrcpp::Any MyVisitor::visitUpdate_table(SQLParser::Update_tableContext *context) {
-    return antlrcpp::Any(0);
+    string table_name = context->Identifier()->getText();
+    auto assignments = context->set_clause()->accept(this).as<vector<pair<string,Value>>>();
+    auto conditions = context->where_and_clause()->accept(this).as<vector<Condition>>();
+    return antlrcpp::Any(string_to_char(
+        this->db_manager->update(table_name, assignments, conditions)
+    ));
 }
 
 antlrcpp::Any MyVisitor::visitSelect_table_(SQLParser::Select_table_Context *context) {
@@ -322,7 +331,12 @@ antlrcpp::Any MyVisitor::visitExpression(SQLParser::ExpressionContext *context) 
 }
 
 antlrcpp::Any MyVisitor::visitSet_clause(SQLParser::Set_clauseContext *context) {
-    return antlrcpp::Any(0);
+    vector<pair<string,Value>> assignments;
+    auto cols = context->Identifier();
+    auto values = context->value();
+    for (int i = 0; i < cols.size(); ++i)
+        assignments.push_back(make_pair(cols[i]->getText(), values[i]->accept(this).as<Value>()));
+    return antlrcpp::Any(assignments);
 }
 
 antlrcpp::Any MyVisitor::visitSelectors(SQLParser::SelectorsContext *context) {
