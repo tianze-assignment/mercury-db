@@ -15,7 +15,13 @@ enum Type { INT,
 struct Value {
     Type type;
     vector<uint8_t> bytes;
-	
+    Value() {type = NULL_TYPE;}
+    Value(int x) {type = INT; bytes = vector<uint8_t>((uint8_t*)(&x), (uint8_t*)(&x) + 4); }
+    Value(float x) {type = FLOAT; bytes = vector<uint8_t>((uint8_t*)(&x), (uint8_t*)(&x) + 4); }
+    Value(string x) {type = INT; bytes = vector<uint8_t>(x.begin(), x.end());}
+    int toInt() const {return *((int*)bytes.data());}
+    float toFloat() const {return *((float*)bytes.data());}
+    string toString() const {return string(bytes.begin(), bytes.end());}
 };
 
 struct Column {

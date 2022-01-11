@@ -372,9 +372,11 @@ Value DBManager::get_value(const vector<vector<Value>>& value_lists,
     return value_lists[table][column];
 }
 
-Query DBManager::select(vector<QueryCol> cols, vector<string> tables, vector<Condition> conditions, int limit, int offset) {
+Query DBManager::select(vector<QueryCol> cols, vector<string> tables, vector<Condition> conditions,
+        Aggregator aggregator, int limit, int offset) {
     check_db();
     Query query;
+    query.aggregator = aggregator;
     // init maps and queryColomns
     vector<Schema> schemas;
     NameMap table_map;

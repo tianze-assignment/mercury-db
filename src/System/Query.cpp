@@ -87,19 +87,53 @@ bool Condition::check_in(const Value& a) {
     return false;
 }
 
+void Query::output(fort::char_table& table, const Value& val) {
+    if (val.type == NULL_TYPE) table << "";
+    else if (val.type == VARCHAR) table << string(val.bytes.begin(), val.bytes.end());
+    else if (val.type == INT) table << *((int*)val.bytes.data());
+    else table << *((float*)val.bytes.data());
+}
+
 string Query::to_str() {
     if (value_lists.empty()) return "";
     fort::char_table table;
     table << fort::header;
-    for (auto col: columns) table << col.first + "." + col.second;
+    if (!aggregator.ops.empty()) {
+        if (!aggregator.group_by.second.empty())
+            table << aggregator.group_by.first + "." + aggregator.group_by.second;
+        int i = 0;
+        for (auto op: aggregator.ops) {
+            if (op == CNT_) {
+                table << "COUNT(*)";
+                continue;
+            }
+            string s;
+            if (op == CNT) s = "COUNT";
+            if (op == AVG) s = "AVG";
+            if (op == MAX) s = "MAX";
+            if (op == MIN) s = "MIN";
+            if (op == SUM) s = "SUM";
+            table << s + "(" + columns[i].first + "." + columns[i].second + ")";
+            ++i;
+        }
+    }
+    else for (auto col: columns) table << col.first + "." + col.second;
     table << fort::endr;
     for (auto val_list: value_lists) {
-        for (auto val: val_list) {
-            if (val.type == NULL_TYPE) table << "";
-            else if (val.type == VARCHAR) table << string(val.bytes.begin(), val.bytes.end());
-            else if (val.type == INT) table << *((int*)val.bytes.data());
-            else table << *((float*)val.bytes.data());
+        if (!aggregator.ops.empty()) {
+            if (!aggregator.group_by.second.empty()) output(table, val_list.back());
+            int i = 0;
+            for (auto op: aggregator.ops) {
+                if (op == AVG) {
+                    Value v;
+                    if (val_list[i+1].toInt() > 0) v = val_list[i].toFloat() / (float)val_list[i+1].toInt();
+                    output(table, v);
+                    i += 2;
+                }
+                else output(table, val_list[i++]);
+            }
         }
+        else for (auto val: val_list) output(table, val);
         table << fort::endr;
     }
     return table.to_string();
@@ -111,6 +145,73 @@ Value Query::to_value() {
     return value_lists[0][0];
 }
 
+void Query::new_empty_agg() {
+    value_lists.push_back(vector<Value>());
+    for (auto op: aggregator.ops) {
+        Value v;
+        if (op == CNT || op == CNT_) v = 0;
+        if (op == AVG) value_lists.back().push_back((float)0), v = 0;
+        value_lists.back().push_back(v);
+    }
+}
+
+void Query::solve_agg(int index, const vector<Value>& value_list) {
+    auto& agg = value_lists[index];
+    int agg_i = 0, val_i = 0;
+    for (auto op: aggregator.ops) {
+        if (op == CNT_) {
+            agg[agg_i] = agg[agg_i].toInt() + 1;
+            ++agg_i;
+            continue;
+        }
+        auto& val = value_list[val_i++];
+        if (val.type == NULL_TYPE) continue;
+        if (op == CNT) agg[agg_i] = agg[agg_i].toInt() + 1;
+        if (op == AVG) {
+            if (val.type == VARCHAR) throw DBException("Average on VARCHAR is invalid");
+            agg[agg_i] = agg[agg_i].toFloat() + (val.type == INT ? (float)val.toInt(): val.toFloat());
+            ++agg_i;
+            agg[agg_i] = agg[agg_i].toInt() + 1;
+        }
+        if (op == MAX) {
+            if (agg[agg_i].type == NULL_TYPE || Condition::cmp(val, agg[agg_i], GREATER))
+                agg[agg_i] = val;
+        }
+        if (op == MIN) {
+            if (agg[agg_i].type == NULL_TYPE || Condition::cmp(val, agg[agg_i], LESS))
+                agg[agg_i] = val;
+        }
+        if (op == SUM) {
+            if (val.type == VARCHAR) throw DBException("Sum on VARCHAR is invalid");
+            if (agg[agg_i].type == NULL_TYPE) agg[agg_i] = val;
+            else if (val.type == INT) agg[agg_i] = agg[agg_i].toInt() + val.toInt();
+            else agg[agg_i] = agg[agg_i].toFloat() + val.toFloat();
+        }
+        ++agg_i;
+    }
+}
+
 void Query::operator+=(const vector<Value>& value_list) {
-    value_lists.push_back(value_list);
+    if (aggregator.ops.empty()) {
+        value_lists.push_back(value_list);
+        return;
+    }
+    if (aggregator.group_by.second.empty()) {
+        if (value_lists.empty()) new_empty_agg();
+        solve_agg(0, value_list);
+    }
+    else {
+        bool found = false;
+        for (int i = 0; i < value_lists.size(); ++i)
+            if (Condition::cmp(value_lists[i].back(), value_list.back(), EQUAL)) {
+                found = true;
+                solve_agg(i, value_list);
+                break;
+            }
+        if (!found && value_list.back().type != NULL_TYPE) {
+            new_empty_agg();
+            value_lists.back().push_back(value_list.back());
+            solve_agg(value_lists.size()-1, value_list);
+        }
+    }
 }

@@ -2,6 +2,7 @@
 
 #include <vector>
 #include <string>
+#include "fort.hpp"
 
 #include "Schema.h"
 
@@ -44,11 +45,14 @@ enum Aggregator_OP {
 
 struct Aggregator{
     vector<Aggregator_OP> ops;
-    vector<int> avg_cnts;
-    string group_by;
+    QueryCol group_by;
 };
 
-struct Query {
+class Query {
+private:
+    void new_empty_agg();
+    void solve_agg(int index, const vector<Value>& value_list);
+    void output(fort::char_table& table, const Value& value);
 public:
     vector<QueryCol> columns;
     Aggregator aggregator;

@@ -150,20 +150,29 @@ antlrcpp::Any MyVisitor::visitSelect_table_(SQLParser::Select_table_Context *con
 antlrcpp::Any MyVisitor::visitSelect_table(SQLParser::Select_tableContext *context) {
     vector<QueryCol> cols;
     Aggregator agg;
+    bool has_normal = false;
     for (auto selector: context->selectors()->selector()) {
         if (!selector->column()) {
             agg.ops.push_back(CNT_);
             continue;
         }
         cols.push_back(selector->column()->accept(this).as<QueryCol>());
+        if (auto ag = selector->aggregator()) agg.ops.push_back(ag->accept(this).as<Aggregator_OP>());
+        else has_normal = true;
     }
+    if (!agg.ops.empty() && has_normal) throw DBException("Can not select aggregators and normal rows in one query");
+    if (auto col = context->column()) {
+        agg.group_by = col->accept(this).as<QueryCol>();
+        cols.push_back(agg.group_by);
+    }
+    if (!agg.group_by.second.empty() && agg.ops.empty()) throw DBException("\"GROUP BY\" should use with aggregators");
     auto tables = context->identifiers()->accept(this).as<vector<string>>();
     vector<Condition> conds;
     if (auto c = context->where_and_clause()) conds = c->accept(this).as<vector<Condition>>();
     int limit = -1, offset = 0;
     if (context->Integer().size() > 0) limit = stoi(context->Integer()[0]->getText());
     if (context->Integer().size() > 1) offset = stoi(context->Integer()[1]->getText());
-    return antlrcpp::Any(db_manager->select(cols, tables, conds, limit, offset));
+    return antlrcpp::Any(db_manager->select(cols, tables, conds, agg, limit, offset));
 }
 
 antlrcpp::Any MyVisitor::visitAlter_add_index(SQLParser::Alter_add_indexContext *context) {
