@@ -85,6 +85,68 @@ vector<Value> DBManager::to_value_list(const Record& record, const Schema& schem
     return value_list;
 }
 
+void DBManager::check_ins_pk(const Schema& schema, const vector<Value>& value_list) {
+    if (!schema.pk.pks.empty()) {
+        vector<int> pk_values;
+        for (auto pk: schema.pk.pks) {
+            int pki = schema.find_column(pk);
+            if (value_list[pki].type == NULL_TYPE) throw DBException("Primary key should not be NULL");
+            pk_values.push_back(*((int*)value_list[pki].bytes.data()));  
+        }
+        auto index_path = db_dir / current_dbname / schema.table_name / (schema.table_name + "_pk.index");
+        index_handler->openIndex(index_path.c_str(), schema.pk.pks.size());
+        if (!index_handler->find(pk_values.data()).isEnd())
+            throw DBException("Duplicate primary key");
+    }
+}
+
+void DBManager::check_ins_fk(const Schema& schema, const vector<Value>& value_list) {
+    for (auto fk: schema.fks) {
+        vector<int> fk_values;
+        bool has_null = false;
+        for (auto fk_col: fk.fks) {
+            int fki = schema.find_column(fk_col);
+            if (value_list[fki].type == NULL_TYPE) {has_null = true; break;}
+            fk_values.push_back(*((int*)value_list[fki].bytes.data()));
+        }
+        if (has_null) continue;
+        auto ref_index_path = db_dir / current_dbname / fk.ref_table / (fk.ref_table + "_pk.index");
+        index_handler->openIndex(ref_index_path.c_str(), fk.fks.size());
+        if (index_handler->find(fk_values.data()).isEnd())
+            throw DBException(string("Invalid value for foreign key \"") + fk.name + "\"");
+    }
+}
+
+vector<pair<string,FK>> DBManager::get_fks_ref(const Schema& schema) {
+    vector<pair<string, FK>> fks_ref_current;
+    for(auto i : schemas){
+        for(auto fk : i.second.fks){
+            if(fk.ref_table == schema.table_name && fk.ref_fks == schema.pk.pks){
+                fks_ref_current.push_back(pair<string, FK>(i.first, fk));
+            }
+        }
+    }
+    return fks_ref_current;
+}
+
+vector<int> DBManager::get_pk_values(const Schema& schema, const vector<Value>& value_list) {
+    vector<int> pk_values;
+    for(auto pk_col : schema.pk.pks) {
+        int pk_i = schema.find_column(pk_col);
+        pk_values.push_back(*((int*)value_list[pk_i].bytes.data()));
+    }
+    return pk_values;
+}
+
+void DBManager::check_del_pk(const vector<pair<string,FK>>& fks_ref, const vector<int>& pk_values) {
+    for(auto &fk_ref : fks_ref) {
+        auto index_path = db_dir / current_dbname / fk_ref.first / (fk_ref.first + "_" + fk_ref.second.name + ".index");
+        index_handler->openIndex(index_path.c_str(), fk_ref.second.fks.size());
+        if(!index_handler->find(pk_values.data()).isEnd())
+            throw DBException("The row to be edited is referenced by table " + fk_ref.first);
+    }
+}
+
 string DBManager::insert(string table_name, vector<vector<Value>> &value_lists){
     check_db();
     Schema& schema = get_schema(table_name);
@@ -92,36 +154,9 @@ string DBManager::insert(string table_name, vector<vector<Value>> &value_lists){
     open_record(schema);
 	auto table_path = db_dir / current_dbname / table_name;
     for(auto value_list: value_lists) {
-        // check format
-        auto record = to_record(value_list, schema);
-        // check pk
-        if (!schema.pk.pks.empty()) {
-            vector<int> pk_values;
-            for (auto pk: schema.pk.pks) {
-                int pki = schema.find_column(pk);
-                if (value_list[pki].type == NULL_TYPE) throw DBException("Primary key should not be NULL");
-                pk_values.push_back(*((int*)value_list[pki].bytes.data()));  
-            }
-            auto index_path = table_path / (table_name + "_pk.index");
-            index_handler->openIndex(index_path.c_str(), schema.pk.pks.size());
-            if (!index_handler->find(pk_values.data()).isEnd())
-                throw DBException("Duplicate primary key");
-        }
-        // check fk
-        for (auto fk: schema.fks) {
-            vector<int> fk_values;
-            bool has_null = false;
-            for (auto fk_col: fk.fks) {
-                int fki = schema.find_column(fk_col);
-                if (value_list[fki].type == NULL_TYPE) {has_null = true; break;}
-                fk_values.push_back(*((int*)value_list[fki].bytes.data()));
-            }
-            if (has_null) continue;
-            auto ref_index_path = db_dir / current_dbname / fk.ref_table / (fk.ref_table + "_pk.index");
-            index_handler->openIndex(ref_index_path.c_str(), fk.fks.size());
-            if (index_handler->find(fk_values.data()).isEnd())
-                throw DBException(string("Invalid value for foreign key \"") + fk.name + "\"");
-        }
+        auto record = to_record(value_list, schema); // check format first
+        check_ins_pk(schema, value_list);
+        check_ins_fk(schema, value_list);
         // insert record
         auto index_val = record_handler->ins(record).toInt();
         for (auto index: schema.get_indexes()) {
@@ -170,34 +205,16 @@ string DBManager::delete_(string table_name, vector<Condition> conditions) {
         if (!cond.b_col.second.empty()) check_column(table_name, column_map, cond.b_col);
     }
     // find tables whose fk references current table
-    vector<pair<string, FK>> fks_ref_current;
-    for(auto i : schemas){
-        for(auto fk : i.second.fks){
-            if(fk.ref_table == table_name && fk.ref_fks == schema.pk.pks){
-                fks_ref_current.push_back(pair<string, FK>(i.first, fk));
-            }
-        }
-    }
+    auto fks_ref_current = get_fks_ref(schema);
     // delete
     int count = 0;
     for (auto it = record_handler->begin(); !it.isEnd(); ) {
         auto value_list = to_value_list(*it, schema);
         if (check_conditions(value_list, column_map, conditions)) {
             // fk constraint check
-            // - get pk's corresponding values
-            vector<int> pk_values;
-            for(auto pk_col : schema.pk.pks){
-                int pk_i = schema.find_column(pk_col);
-                pk_values.push_back(*((int*)value_list[pk_i].bytes.data()));
-            }
-            // - check
-            for(auto &fk_ref_current : fks_ref_current){
-                auto index_path = db_dir / current_dbname / fk_ref_current.first / (fk_ref_current.first + "_" + fk_ref_current.second.name + ".index");
-                index_handler->openIndex(index_path.c_str(), fk_ref_current.second.fks.size());
-                if(!index_handler->find(pk_values.data()).isEnd())
-                    throw DBException("The row to be deleted is referenced by table " + fk_ref_current.first);
-            }
-            
+            auto pk_values = get_pk_values(schema, value_list);
+            check_del_pk(fks_ref_current, pk_values);
+
             // delete from index
             int index_val = it.toInt();
             for(auto index : schema.get_indexes()){
@@ -238,15 +255,53 @@ string DBManager::update(string table_name, vector<pair<string,Value>> assignmen
         check_column(table_name, column_map, cond.a);
         if (!cond.b_col.second.empty()) check_column(table_name, column_map, cond.b_col);
     }
+    // find tables whose fk references current table
+    auto fks_ref_current = get_fks_ref(schema);
     // update
     int count = 0;
     for (auto it = record_handler->begin(); !it.isEnd(); ) {
         auto value_list = to_value_list(*it, schema);
         if (check_conditions(value_list, column_map, conditions)) {
             ++count;
+            auto old_value_list = value_list;
+            auto old_pk_values = get_pk_values(schema, value_list);
             for (auto assignment: assignments)
                 value_list[column_map[assignment.first]] = assignment.second;
-            record_handler->upd(it++, to_record(value_list, schema));
+            
+            // check format first
+            auto record = to_record(value_list, schema);
+            // check fk,pk constraint
+            auto pk_values = get_pk_values(schema, value_list);
+            if (pk_values != old_pk_values) {
+                check_del_pk(fks_ref_current, old_pk_values);
+                check_ins_pk(schema, value_list);
+            }
+            check_ins_fk(schema, value_list);
+
+            // update record
+            int old_index_val = it.toInt();
+            int index_val = record_handler->upd(it++, record).toInt();
+
+            // update index
+            for(auto index : schema.get_indexes()){
+                vector<int> key_values, old_key_values;
+                bool has_null = false, old_has_null = false;
+                for(auto key : index.second){
+                    int ki = schema.find_column(key);
+                    if (value_list[ki].type == NULL_TYPE) has_null = true;
+                    if (old_value_list[ki].type == NULL_TYPE) old_has_null = true;
+                    if (!has_null) key_values.push_back(*((int*)value_list[ki].bytes.data()));
+                    if (!old_has_null) old_key_values.push_back(*((int*)old_value_list[ki].bytes.data()));
+                }
+                if (has_null && old_has_null) break;
+                index_handler->openIndex((db_dir/current_dbname/table_name/index.first).c_str(), index.second.size());
+                if (!has_null && !old_has_null)
+                    index_handler->upd(old_key_values.data(), old_index_val, key_values.data(), index_val);
+                else if (!old_has_null)
+                    index_handler->del(old_key_values.data(), old_index_val);
+                else if (!has_null)
+                    index_handler->ins(key_values.data(), index_val);
+            }
         }
         else ++it;
     }

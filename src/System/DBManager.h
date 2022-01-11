@@ -41,6 +41,11 @@ class DBManager {
     Schema& get_schema(const string& table_name);
     Record to_record(vector<Value>& value_list, const Schema& schema); // note : varchar value will be appended '\0'
     vector<Value> to_value_list(const Record& record, const Schema& schema);
+    void check_ins_pk(const Schema& schema, const vector<Value>& value_list);
+    void check_ins_fk(const Schema& schema, const vector<Value>& value_list);
+    vector<pair<string,FK>> get_fks_ref(const Schema& schema);
+    vector<int> get_pk_values(const Schema& schema, const vector<Value>& value_list);
+    void check_del_pk(const vector<pair<string,FK>>& fks_ref, const vector<int>& pk_values);
     bool check_conditions(const vector<Value>& value_list, const NameMap& column_map, const vector<Condition>& conditions);
     void check_column(const string& table_name, const NameMap& column_map, const QueryCol& col);
     void check_column(const NameMap& table_map, const vector<NameMap>& column_maps, const QueryCol& col);
