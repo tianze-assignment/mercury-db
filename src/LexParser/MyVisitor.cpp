@@ -148,7 +148,15 @@ antlrcpp::Any MyVisitor::visitSelect_table_(SQLParser::Select_table_Context *con
 }
 
 antlrcpp::Any MyVisitor::visitSelect_table(SQLParser::Select_tableContext *context) {
-    auto cols = context->selectors()->accept(this).as<vector<QueryCol>>();
+    vector<QueryCol> cols;
+    Aggregator agg;
+    for (auto selector: context->selectors()->selector()) {
+        if (!selector->column()) {
+            agg.ops.push_back(CNT_);
+            continue;
+        }
+        cols.push_back(selector->column()->accept(this).as<QueryCol>());
+    }
     auto tables = context->identifiers()->accept(this).as<vector<string>>();
     vector<Condition> conds;
     if (auto c = context->where_and_clause()) conds = c->accept(this).as<vector<Condition>>();
@@ -383,15 +391,11 @@ antlrcpp::Any MyVisitor::visitSet_clause(SQLParser::Set_clauseContext *context) 
 }
 
 antlrcpp::Any MyVisitor::visitSelectors(SQLParser::SelectorsContext *context) {
-    vector<QueryCol> cols;
-    for (auto selector: context->selector())
-        cols.push_back(selector->accept(this).as<QueryCol>());
-    return antlrcpp::Any(cols);
+    return antlrcpp::Any(0);
 }
 
 antlrcpp::Any MyVisitor::visitSelector(SQLParser::SelectorContext *context) {
-    QueryCol col = context->column()->accept(this).as<QueryCol>();
-    return antlrcpp::Any(col);
+    return antlrcpp::Any(0);
 }
 
 antlrcpp::Any MyVisitor::visitIdentifiers(SQLParser::IdentifiersContext *context) {

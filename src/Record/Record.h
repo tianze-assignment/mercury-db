@@ -1,6 +1,9 @@
 #pragma once
 
 #include <iostream>
+#include <vector>
+
+using namespace std;
 
 struct RecordType{
     int num_int, num_varchar;
@@ -10,20 +13,14 @@ struct RecordType{
 };
 
 struct Record{
-    bool *int_null, *varchar_null;
-    int *int_data;
-    char **varchar_data;
+    vector<bool> int_null, varchar_null;
+    vector<int> int_data;
+    vector<char*> varchar_data;
     Record(const RecordType& type) {
-        int_null = new bool[type.num_int];
-        int_data = new int[type.num_int];
-        varchar_null = new bool[type.num_varchar];
-        varchar_data = new char*[type.num_varchar];
-    }
-    ~Record() {
-        delete[] int_null;
-        delete[] int_data;
-        delete[] varchar_null;
-        delete[] varchar_data;
+        int_null = vector<bool>(type.num_int);
+        int_data = vector<int>(type.num_int);
+        varchar_null = vector<bool>(type.num_varchar);
+        varchar_data = vector<char*>(type.num_varchar);
     }
     void output(std::ostream& os, const RecordType& type) {
         for (int i = 0; i < type.num_int; ++i)

@@ -38,11 +38,14 @@ enum Aggregator_OP {
     AVG,
     MAX,
     MIN,
-    SUM
+    SUM,
+    CNT_
 };
 
 struct Aggregator{
     vector<Aggregator_OP> ops;
+    vector<int> avg_cnts;
+    string group_by;
 };
 
 struct Query {
