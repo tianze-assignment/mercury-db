@@ -469,7 +469,7 @@ Query DBManager::select(vector<QueryCol> cols, vector<string> tables, vector<Con
         if (i == conditions.size()) {
             vector<Value> value_list;
             for (auto col: query.columns) value_list.push_back(get_value(value_lists, table_map, column_maps, col));
-            if (!offset) query.value_lists.push_back(value_list);
+            if (!offset) query += value_list;
             else --offset;
         }
         // ++its

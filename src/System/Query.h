@@ -52,4 +52,5 @@ public:
     vector<vector<Value>> value_lists;
     string to_str();
     Value to_value();
+    void operator+=(const vector<Value>& value_list);
 };

@@ -110,3 +110,7 @@ Value Query::to_value() {
         throw DBException("There should be exactly one value in set");
     return value_lists[0][0];
 }
+
+void Query::operator+=(const vector<Value>& value_list) {
+    value_lists.push_back(value_list);
+}
