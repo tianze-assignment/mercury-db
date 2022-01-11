@@ -230,6 +230,7 @@ string DBManager::delete_(string table_name, vector<Condition> conditions) {
     int isize;
     auto begin_end = find_index(schema, conditions, found, iname, isize);
     auto iit = begin_end.first;
+    if (found) index_handler->openIndex((db_dir / current_dbname / table_name / iname).c_str(), isize);
     for (auto it = record_handler->begin(); found ? iit == begin_end.second : !it.isEnd(); ) {
         if (found) it = RecordHandler::Iterator(record_handler, *iit);
         auto value_list = to_value_list(*it, schema);
@@ -300,6 +301,7 @@ string DBManager::update(string table_name, vector<pair<string,Value>> assignmen
     int isize;
     auto begin_end = find_index(schema, conditions, found, iname, isize);
     auto iit = begin_end.first;
+    if (found) index_handler->openIndex((db_dir / current_dbname / table_name / iname).c_str(), isize);
     for (auto it = record_handler->begin(); found ? iit == begin_end.second : !it.isEnd(); ) {
         if (found) it = RecordHandler::Iterator(record_handler, *iit);
         auto value_list = to_value_list(*it, schema);
