@@ -64,7 +64,12 @@ antlrcpp::Any MyVisitor::visitShow_indexes(SQLParser::Show_indexesContext *conte
 }
 
 antlrcpp::Any MyVisitor::visitLoad_data(SQLParser::Load_dataContext *context) {
-    return antlrcpp::Any(0);
+    string filename = context->String()->getText();
+    filename.erase(0, 1); filename.pop_back();
+    string table = context->Identifier()->getText();
+    return antlrcpp::Any(string_to_char(
+        db_manager->load_data(filename, table)
+    ));
 }
 
 antlrcpp::Any MyVisitor::visitDump_data(SQLParser::Dump_dataContext *context) {

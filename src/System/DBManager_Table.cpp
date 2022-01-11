@@ -24,7 +24,7 @@ Schema& DBManager::get_schema(const string& table_name) {
     return schemas[table_name];
 }
 
-Record DBManager::to_record(const vector<Value>& value_list, const Schema& schema) {
+Record DBManager::to_record(vector<Value>& value_list, const Schema& schema) {
     if (value_list.size() != schema.columns.size()) throw DBException("Invalid number of values");
     Record record(schema.record_type());
     int int_count = 0, varchar_count = 0;
@@ -42,7 +42,8 @@ Record DBManager::to_record(const vector<Value>& value_list, const Schema& schem
             record.varchar_null[varchar_count] = false;
             if (value.bytes.size() > column.varchar_len)
                 throw DBException((string)"Varchar \"" + column.name + "\" too long");
-            record.varchar_data[varchar_count++] = string(value.bytes.begin(), value.bytes.end()).data();
+            value.bytes.push_back('\0');
+            record.varchar_data[varchar_count++] = (char *)value.bytes.data();
         }
         else {
             record.int_null[int_count] = false;

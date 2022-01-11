@@ -1,6 +1,7 @@
 #include <filesystem>
 #include <unordered_set>
 #include <regex>
+#include <fstream>
 #include "fort.hpp"
 
 #include "DBManager.h"
@@ -185,4 +186,51 @@ string DBManager::drop_table(string name){
 string DBManager::describe_table(string name){
     check_db();
     return get_schema(name).to_str();
+}
+
+string DBManager::load_data(string &filename, string &table_name){
+    check_db();
+    auto &schema = get_schema(table_name);
+    ifstream input(filename);
+    string line;
+    for(int i = 0; std::getline(input, line); i++){
+        if((i % 10000) == 0)
+            cout << i << " " << flush;
+        // split by ','
+        string delim = ",";
+        auto start = 0U;
+        auto end = line.find(delim);
+        vector<Value> values;
+        for(int j = 0; ; j++){
+            string value_str = line.substr(start, end-start);
+
+            Value v;
+            auto type = schema.columns[j].type;
+            if(type == INT){
+                v.type = INT;
+                int value = std::stoi(value_str);
+                uint8_t *bytes = static_cast<uint8_t *>(static_cast<void *>(&value));
+                v.bytes = vector<uint8_t>(bytes, bytes + 4);
+            }else if(type == FLOAT){
+                v.type = FLOAT;
+                float value = std::stof(value_str);
+                uint8_t *bytes = static_cast<uint8_t *>(static_cast<void *>(&value));
+                v.bytes = vector<uint8_t>(bytes, bytes + 4);
+            }else if(type == VARCHAR) {
+                v.type = VARCHAR;
+                v.bytes = vector<uint8_t>(value_str.begin(), value_str.end());
+            }
+            values.push_back(v);
+
+            if(end == string::npos) break;
+            start = end + delim.length();
+            end = line.find(delim, start);
+        }
+        vector<vector<Value>> valuess;
+        valuess.push_back(values);
+        this->insert(table_name, valuess);
+
+        // break;
+    }
+    return "Added";
 }
