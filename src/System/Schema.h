@@ -58,5 +58,5 @@ class Schema {
     int find_column(string &name) const;
     int find_fk_by_name(string &name);
     RecordType record_type() const;
-    vector<pair<string,vector<string>>> get_indexes();
+    vector<pair<string,vector<string>>> get_indexes() const;
 };

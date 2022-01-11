@@ -269,18 +269,39 @@ Query DBManager::select(vector<QueryCol> cols, vector<string> tables, vector<Con
     // search
     // -- init its
     vector<RecordHandler::Iterator> its;
+    vector<bool> ifound;
+    vector<string> inames;
+    vector<int> isizes;
+    vector<IndexHandler::Iterator> iits, ibegin, iend;
     for (auto schema: schemas) {
         open_record(schema);
         its.push_back(record_handler->begin());
         if (its.back().isEnd()) return query;
+        bool found = false;
+        string iname;
+        int isize;
+        auto it = find_index(schema, conditions, found, iname, isize);
+        if (found && it.first == it.second) return query;
+        ifound.push_back(found);
+        inames.push_back(schema.table_name + "/" + iname);
+        isizes.push_back(isize);
+        iits.push_back(it.first);
+        ibegin.push_back(it.first);
+        iend.push_back(it.second);
     }
     // -- loop
     while (limit == -1 || query.value_lists.size() < limit) {
         int i;
+        // get values
         vector<vector<Value>> value_lists;
         for (i = 0; i < its.size(); ++i) {
             open_record(schemas[i]);
-            value_lists.push_back(to_value_list(*its[i], schemas[i]));
+            if (ifound[i]) {
+                index_handler->openIndex((db_dir / current_dbname / inames[i]).c_str(), isizes[i]);
+                auto it = RecordHandler::Iterator(record_handler, *iits[i]);
+                value_lists.push_back(to_value_list(*it, schemas[i]));
+            }
+            else value_lists.push_back(to_value_list(*its[i], schemas[i]));
         }
         // check conditions
         for (i = 0; i < conditions.size(); ++i) {
@@ -304,11 +325,63 @@ Query DBManager::select(vector<QueryCol> cols, vector<string> tables, vector<Con
         }
         // ++its
         for (i=its.size()-1; i >= 0 ; --i) {
-            open_record(schemas[i]);
-            if (!(++its[i]).isEnd()) break;
-            its[i] = record_handler->begin();
+            if (ifound[i]) {
+                index_handler->openIndex((db_dir / current_dbname / inames[i]).c_str(), isizes[i]);
+                if (++iits[i] != iend[i]) break;
+                iits[i] = ibegin[i];
+            }
+            else {
+                open_record(schemas[i]);
+                if (!(++its[i]).isEnd()) break;
+                its[i] = record_handler->begin();
+            }
         }
         if (i < 0) break;
     }
     return query;
+}
+
+pair<IndexHandler::Iterator,IndexHandler::Iterator> DBManager::find_index(
+    const Schema& schema, const vector<Condition>& conditions, bool& found, string& iname, int& isize) {
+	auto table_path = db_dir / current_dbname / schema.table_name;
+    for (auto index: schema.get_indexes()) {
+        auto& fileName = index.first;
+        auto& cols = index.second;
+        vector<int> lv, rv;
+        for (auto col: cols) {
+            int l = INT32_MIN, r = INT32_MAX;
+            for (auto cond: conditions) {
+                if (cond.a.first == schema.table_name && cond.a.second == col && cond.b_col.second.empty() &&
+                        (cond.op == EQUAL || cond.op == LESS || cond.op == LESS_EQUAL || cond.op == GREATER || cond.op == GREATER_EQUAL)) {
+                    int b = *((int*)cond.b_val.bytes.data());
+                    if (cond.op == EQUAL) l = max(l, b), r = min(r, b);
+                    if (cond.op == LESS) {if (b != INT32_MIN) r = min(r, b-1); else l = INT32_MAX, r = INT32_MIN;}
+                    if (cond.op == LESS_EQUAL) r = min(r, b);
+                    if (cond.op == GREATER) {if (b != INT32_MAX) l = max(l, b+1); else l = INT32_MAX, r = INT32_MIN;}
+                    if (cond.op == GREATER_EQUAL) l = max(l, b);
+                }
+            }
+            if (l > r) {
+                found = true;
+                iname = fileName;
+                isize = cols.size();
+                index_handler->openIndex((table_path / fileName).c_str(), cols.size());
+                return make_pair(index_handler->end(), index_handler->end());
+            }
+            lv.push_back(l); rv.push_back(r);
+            if (!found) {
+                if (l > INT32_MIN || r < INT32_MAX) found = true;
+                else break;
+            }
+        }
+        if (found) {
+            iname = fileName;
+            isize = cols.size();
+            index_handler->openIndex((table_path / fileName).c_str(), cols.size());
+            auto begin = index_handler->lowerBound(lv.data());
+            auto end = index_handler->upperBound(rv.data());
+            return make_pair(begin, end);
+        }
+    }
+    return make_pair(index_handler->end(), index_handler->end());
 }

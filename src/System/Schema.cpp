@@ -230,7 +230,7 @@ RecordType Schema::record_type() const {
     return res;
 }
 
-vector<pair<string,vector<string>>> Schema::get_indexes() {
+vector<pair<string,vector<string>>> Schema::get_indexes() const {
     vector<pair<string,vector<string>>> res;
     if (!pk.pks.empty()) res.push_back(make_pair(table_name + "_pk.index", pk.pks));
     for (auto fk: fks) res.push_back(make_pair(table_name + "_" + fk.name + ".index", fk.fks));

@@ -46,6 +46,8 @@ class DBManager {
     void check_column(const NameMap& table_map, const vector<NameMap>& column_maps, const QueryCol& col);
     Value get_value(const vector<vector<Value>>& value_lists,
             const NameMap& table_map, const vector<NameMap>& column_maps, const QueryCol& col);
+    pair<IndexHandler::Iterator,IndexHandler::Iterator> find_index(
+            const Schema& schema, const vector<Condition>& conditions, bool& found, string& iname, int& isize);
 
    public:
     DBManager();
