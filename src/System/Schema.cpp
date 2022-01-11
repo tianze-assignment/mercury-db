@@ -236,4 +236,5 @@ vector<pair<string,vector<string>>> Schema::get_indexes() {
     for (auto fk: fks) res.push_back(make_pair(table_name + "_" + fk.name + ".index", fk.fks));
     for (int i = 0; i < indexes.size(); ++i)
         res.push_back(make_pair(table_name + to_string(i) + ".index", indexes[i]));
+    return res;
 }

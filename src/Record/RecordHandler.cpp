@@ -13,6 +13,7 @@ RecordHandler::RecordHandler() {
     FileSystem::init();
     _fm = FileSystem::fm;
     _bpm = FileSystem::bpm;
+    _fileID = -1;
 }
 
 RecordHandler::~RecordHandler() {
