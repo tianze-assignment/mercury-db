@@ -39,7 +39,7 @@ class DBManager {
     string file_name(const Schema& schema);
     void open_record(const Schema& schema);
     Schema& get_schema(const string& table_name);
-    Record to_record(const vector<Value>& value_list, const Schema& schema);
+    Record to_record(vector<Value>& value_list, const Schema& schema);
     vector<Value> to_value_list(const Record& record, const Schema& schema);
     void check_column(const string& table_name, const NameMap& column_map, const QueryCol& col);
     void check_column(const NameMap& table_map, const vector<NameMap>& column_maps, const QueryCol& col);
@@ -74,4 +74,6 @@ class DBManager {
     string alter_drop_fk(string &table_name, string &fk_name);
     string alter_add_pk(string &table_name, string &pk_name, vector<string> &pks);
     string alter_add_fk(string &table_name, string &fk_name, string &ref_table_name, vector<string> &fields, vector<string> &ref_fields);
+
+    string load_data(string &filename, string &table_name);
 };

@@ -33,9 +33,13 @@ int RecordHandler::createFile(const char* fileName, const RecordType& type) {
 
 int RecordHandler::openFile(const char* fileName, const RecordType& type) {
     int flag = 0;
-    flag |= !_fm->openFile(fileName, _fileID);
+    int fileID;
+    flag |= !_fm->openFile(fileName, fileID);
     _type = type;
-    _end = Iterator(this, -1, 0);
+    if (fileID != _fileID) {
+        _fileID = fileID;
+        _end = Iterator(this, -1, 0);
+    }
     return flag;
 }
 
