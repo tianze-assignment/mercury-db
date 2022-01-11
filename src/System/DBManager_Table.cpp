@@ -169,11 +169,50 @@ string DBManager::delete_(string table_name, vector<Condition> conditions) {
         check_column(table_name, column_map, cond.a);
         if (!cond.b_col.second.empty()) check_column(table_name, column_map, cond.b_col);
     }
+    // find tables whose fk references current table
+    vector<pair<string, FK>> fks_ref_current;
+    for(auto i : schemas){
+        for(auto fk : i.second.fks){
+            if(fk.ref_table == table_name && fk.ref_fks == schema.pk.pks){
+                fks_ref_current.push_back(pair<string, FK>(i.first, fk));
+            }
+        }
+    }
     // delete
     int count = 0;
     for (auto it = record_handler->begin(); !it.isEnd(); ) {
         auto value_list = to_value_list(*it, schema);
         if (check_conditions(value_list, column_map, conditions)) {
+            // fk constraint check
+            // - get pk's corresponding values
+            vector<int> pk_values;
+            for(auto pk_col : schema.pk.pks){
+                int pk_i = schema.find_column(pk_col);
+                pk_values.push_back(*((int*)value_list[pk_i].bytes.data()));
+            }
+            // - check
+            for(auto &fk_ref_current : fks_ref_current){
+                auto index_path = db_dir / current_dbname / fk_ref_current.first / (fk_ref_current.first + "_" + fk_ref_current.second.name + ".index");
+                index_handler->openIndex(index_path.c_str(), fk_ref_current.second.fks.size());
+                if(!index_handler->find(pk_values.data()).isEnd())
+                    throw DBException("The row to be deleted is referenced by table " + fk_ref_current.first);
+            }
+            
+            // delete from index
+            int index_val = it.toInt();
+            for(auto index : schema.get_indexes()){
+                vector<int> key_values;
+                bool has_null = false;
+                for(auto key : index.second){
+                    int ki = schema.find_column(key);
+                    if(value_list[ki].type == NULL_TYPE) {has_null = true; break;}
+                    key_values.push_back(*((int*)value_list[ki].bytes.data()));
+                }
+                if(has_null) continue;
+                index_handler->openIndex((db_dir/current_dbname/table_name/index.first).c_str(), index.second.size());
+                index_handler->del(key_values.data(), index_val);
+            }
+
             ++count;
             record_handler->del(it++);
         }
