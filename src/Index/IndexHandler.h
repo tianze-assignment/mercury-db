@@ -25,6 +25,7 @@ public:
         Iterator operator++(int);
         bool isEnd() const;
 		bool operator==(const Iterator& it) const;
+		bool operator!=(const Iterator& it) const;
 	private:
 		friend class IndexHandler;
 		IndexHandler* _handler;
@@ -33,6 +34,7 @@ public:
 	};
 	
 	Iterator begin();
+	Iterator end();
 	Iterator lowerBound(const int* keys);
 	Iterator upperBound(const int* keys);
 	Iterator find(const int* keys);

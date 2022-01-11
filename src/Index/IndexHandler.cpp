@@ -167,6 +167,10 @@ IndexHandler::Iterator IndexHandler::begin() {
     return it;
 }
 
+IndexHandler::Iterator IndexHandler::end() {
+    return Iterator(this);
+}
+
 IndexHandler::Iterator IndexHandler::lowerBound(const int* keys) {
     Iterator it(this);
     int page = 0;
@@ -207,7 +211,7 @@ IndexHandler::Iterator IndexHandler::find(const int* keys) {
     _openPage(it._stack.back().first);
     auto dataKeys = _dataKeys(it._stack.back().second);
     for (int i = 0; i < _numKey; ++i)
-        if (dataKeys[i] != keys[i]) return Iterator(this);
+        if (dataKeys[i] != keys[i]) return end();
     return it;
 }
 
@@ -307,5 +311,12 @@ bool IndexHandler::Iterator::isEnd() const{
 
 bool IndexHandler::Iterator::operator==(const Iterator& it) const{
     if (isEnd()) return it.isEnd();
+    if (it.isEnd()) return false;
     return _stack.back() == it._stack.back();
+}
+
+bool IndexHandler::Iterator::operator!=(const Iterator& it) const{
+    if (isEnd()) return !it.isEnd();
+    if (it.isEnd()) return true;
+    return _stack.back() != it._stack.back();
 }

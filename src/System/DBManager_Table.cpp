@@ -92,6 +92,8 @@ string DBManager::insert(string table_name, vector<vector<Value>> &value_lists){
     open_record(schema);
 	auto table_path = db_dir / current_dbname / table_name;
     for(auto value_list: value_lists) {
+        // check format
+        auto record = to_record(value_list, schema);
         // check pk
         if (!schema.pk.pks.empty()) {
             vector<int> pk_values;
@@ -116,11 +118,12 @@ string DBManager::insert(string table_name, vector<vector<Value>> &value_lists){
             }
             if (has_null) continue;
             auto ref_index_path = db_dir / current_dbname / fk.ref_table / (fk.ref_table + "_pk.index");
+            index_handler->openIndex(ref_index_path.c_str(), fk.fks.size());
             if (index_handler->find(fk_values.data()).isEnd())
                 throw DBException(string("Invalid value for foreign key \"") + fk.name + "\"");
         }
         // insert record
-        auto index_val = record_handler->ins(to_record(value_list, schema)).toInt();
+        auto index_val = record_handler->ins(record).toInt();
         for (auto index: schema.get_indexes()) {
             vector<int> key_values;
             bool has_null = false;
@@ -138,11 +141,27 @@ string DBManager::insert(string table_name, vector<vector<Value>> &value_lists){
     return "Insert " + rows_text(value_lists.size()) + " OK (" + to_string(use_time) + " Sec)";
 }
 
+bool DBManager::check_conditions(const vector<Value>& value_list, const NameMap& column_map, const vector<Condition>& conditions) {
+    for (auto cond: conditions) {
+        Value a = value_list[column_map.at(cond.a.second)];
+        if (cond.op == IN) {
+            if (cond.check_in(a)) continue;
+            else break;
+        }
+        Value b;
+        if (cond.b_col.second.empty()) b = cond.b_val;
+        else b = value_list[column_map.at(cond.b_col.second)];
+        if (!Condition::cmp(a, b, cond.op)) return false;
+    }
+    return true;
+}
+
 string DBManager::delete_(string table_name, vector<Condition> conditions) {
     check_db();
     Schema& schema = get_schema(table_name);
     clock_t start = clock();
     open_record(schema);
+    // init map and check conditions
     NameMap column_map;
     for (int i = 0; i < schema.columns.size(); ++i)
         column_map[schema.columns[i].name] = i;
@@ -150,23 +169,11 @@ string DBManager::delete_(string table_name, vector<Condition> conditions) {
         check_column(table_name, column_map, cond.a);
         if (!cond.b_col.second.empty()) check_column(table_name, column_map, cond.b_col);
     }
+    // delete
     int count = 0;
     for (auto it = record_handler->begin(); !it.isEnd(); ) {
         auto value_list = to_value_list(*it, schema);
-        int i;
-        for (i = 0; i < conditions.size(); ++i) {
-            Condition& cond = conditions[i];
-            Value a = value_list[column_map[cond.a.second]];
-            if (cond.op == IN) {
-                if (cond.check_in(a)) continue;
-                else break;
-            }
-            Value b;
-            if (cond.b_col.second.empty()) b = cond.b_val;
-            else b = value_list[column_map[cond.b_col.second]];
-            if (!Condition::cmp(a, b, cond.op)) break;
-        }
-        if (i == conditions.size()) {
+        if (check_conditions(value_list, column_map, conditions)) {
             ++count;
             record_handler->del(it++);
         }
@@ -196,22 +203,7 @@ string DBManager::update(string table_name, vector<pair<string,Value>> assignmen
     int count = 0;
     for (auto it = record_handler->begin(); !it.isEnd(); ) {
         auto value_list = to_value_list(*it, schema);
-        int i;
-        // check conditions
-        for (i = 0; i < conditions.size(); ++i) {
-            Condition& cond = conditions[i];
-            Value a = value_list[column_map[cond.a.second]];
-            if (cond.op == IN) {
-                if (cond.check_in(a)) continue;
-                else break;
-            }
-            Value b;
-            if (cond.b_col.second.empty()) b = cond.b_val;
-            else b = value_list[column_map[cond.b_col.second]];
-            if (!Condition::cmp(a, b, cond.op)) break;
-        }
-        // conditions ok
-        if (i == conditions.size()) {
+        if (check_conditions(value_list, column_map, conditions)) {
             ++count;
             for (auto assignment: assignments)
                 value_list[column_map[assignment.first]] = assignment.second;
@@ -248,6 +240,7 @@ Value DBManager::get_value(const vector<vector<Value>>& value_lists,
 Query DBManager::select(vector<QueryCol> cols, vector<string> tables, vector<Condition> conditions, int limit, int offset) {
     check_db();
     Query query;
+    // init maps and queryColomns
     vector<Schema> schemas;
     NameMap table_map;
     vector<NameMap> column_maps;
@@ -273,12 +266,15 @@ Query DBManager::select(vector<QueryCol> cols, vector<string> tables, vector<Con
         check_column(table_map, column_maps, cond.a);
         if (!cond.b_col.second.empty()) check_column(table_map, column_maps, cond.b_col);
     }
+    // search
+    // -- init its
     vector<RecordHandler::Iterator> its;
     for (auto schema: schemas) {
         open_record(schema);
         its.push_back(record_handler->begin());
         if (its.back().isEnd()) return query;
     }
+    // -- loop
     while (limit == -1 || query.value_lists.size() < limit) {
         int i;
         vector<vector<Value>> value_lists;
@@ -286,6 +282,7 @@ Query DBManager::select(vector<QueryCol> cols, vector<string> tables, vector<Con
             open_record(schemas[i]);
             value_lists.push_back(to_value_list(*its[i], schemas[i]));
         }
+        // check conditions
         for (i = 0; i < conditions.size(); ++i) {
             Condition& cond = conditions[i];
             Value a = get_value(value_lists, table_map, column_maps, cond.a);
@@ -298,12 +295,14 @@ Query DBManager::select(vector<QueryCol> cols, vector<string> tables, vector<Con
             else b = get_value(value_lists, table_map, column_maps, cond.b_col);
             if (!Condition::cmp(a, b, cond.op)) break;
         }
+        // conditions ok
         if (i == conditions.size()) {
             vector<Value> value_list;
             for (auto col: query.columns) value_list.push_back(get_value(value_lists, table_map, column_maps, col));
             if (!offset) query.value_lists.push_back(value_list);
             else --offset;
         }
+        // ++its
         for (i=its.size()-1; i >= 0 ; --i) {
             open_record(schemas[i]);
             if (!(++its[i]).isEnd()) break;
