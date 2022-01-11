@@ -225,7 +225,13 @@ string DBManager::delete_(string table_name, vector<Condition> conditions) {
     // delete
     int count = 0;
     vector<string> fails;
-    for (auto it = record_handler->begin(); !it.isEnd(); ) {
+    bool found = false;
+    string iname;
+    int isize;
+    auto begin_end = find_index(schema, conditions, found, iname, isize);
+    auto iit = begin_end.first;
+    for (auto it = record_handler->begin(); found ? iit == begin_end.second : !it.isEnd(); ) {
+        if (found) it = RecordHandler::Iterator(record_handler, *iit);
         auto value_list = to_value_list(*it, schema);
         if (check_conditions(value_list, column_map, conditions)) {
             // fk constraint check
@@ -253,9 +259,10 @@ string DBManager::delete_(string table_name, vector<Condition> conditions) {
             }
 
             ++count;
-            record_handler->del(it++);
+            record_handler->del(it);
+            if (found) ++iit; else ++it;
         }
-        else ++it;
+        else if (found) ++iit; else ++it;
     }
     double use_time = (double)(clock() - start) / CLOCKS_PER_SEC;
     string result = "Delete " + rows_text(count) + " OK (" + to_string(use_time) + " Sec)";
@@ -287,7 +294,14 @@ string DBManager::update(string table_name, vector<pair<string,Value>> assignmen
     // update
     int count = 0;
     vector<string> fails;
-    for (auto it = record_handler->begin(); !it.isEnd(); ) {
+    
+    bool found = false;
+    string iname;
+    int isize;
+    auto begin_end = find_index(schema, conditions, found, iname, isize);
+    auto iit = begin_end.first;
+    for (auto it = record_handler->begin(); found ? iit == begin_end.second : !it.isEnd(); ) {
+        if (found) it = RecordHandler::Iterator(record_handler, *iit);
         auto value_list = to_value_list(*it, schema);
         if (check_conditions(value_list, column_map, conditions)) {
             ++count;
@@ -316,7 +330,8 @@ string DBManager::update(string table_name, vector<pair<string,Value>> assignmen
 
             // update record
             int old_index_val = it.toInt();
-            int index_val = record_handler->upd(it++, record).toInt();
+            int index_val = record_handler->upd(it, record).toInt();
+            if (found) ++iit; else ++it;
 
             // update index
             for(auto index : schema.get_indexes()){
@@ -329,7 +344,7 @@ string DBManager::update(string table_name, vector<pair<string,Value>> assignmen
                     if (!has_null) key_values.push_back(*((int*)value_list[ki].bytes.data()));
                     if (!old_has_null) old_key_values.push_back(*((int*)old_value_list[ki].bytes.data()));
                 }
-                if (has_null && old_has_null) break;
+                if (has_null && old_has_null) continue;
                 index_handler->openIndex((db_dir/current_dbname/table_name/index.first).c_str(), index.second.size());
                 if (!has_null && !old_has_null)
                     index_handler->upd(old_key_values.data(), old_index_val, key_values.data(), index_val);
@@ -339,7 +354,7 @@ string DBManager::update(string table_name, vector<pair<string,Value>> assignmen
                     index_handler->ins(key_values.data(), index_val);
             }
         }
-        else ++it;
+        else if (found) ++iit; else ++it;
     }
     double use_time = (double)(clock() - start) / CLOCKS_PER_SEC;
     string result = "Update " + rows_text(count) + " OK (" + to_string(use_time) + " Sec)";
