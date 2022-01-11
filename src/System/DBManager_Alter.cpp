@@ -34,8 +34,11 @@ string DBManager::alter_add_index(string &table_name, vector<string> &fields) {
     if (index_handler->createIndex(index_path.c_str(), fields.size()))
         throw DBException("Create file failed");
     open_record(schema);
+    RecordType record_type = schema.record_type();
     for (auto i = record_handler->begin(); !i.isEnd(); ++i) {
-        auto values = to_value_list(*i, schema);
+        auto record = *i;
+        auto values = to_value_list(record, schema);
+        record.release(record_type);
         vector<int> ints;
         bool has_null = false;
         for (auto &column_index : column_indexes) {
@@ -149,8 +152,11 @@ string DBManager::alter_add_pk(string &table_name, string &pk_name, vector<strin
     if ( index_handler->createIndex(index_path.c_str(), pks.size()))
         throw DBException("Create file failed");
     open_record(schema);
+    RecordType record_type = schema.record_type();
     for (auto i = record_handler->begin(); !i.isEnd(); ++i) {
-        auto values = to_value_list(*i, schema);
+        auto record = *i;
+        auto values = to_value_list(record, schema);
+        record.release(record_type);
         vector<int> ints;
         for (auto &column_index : column_indexes) {
             if (values[column_index].type == NULL_TYPE){
@@ -212,10 +218,13 @@ string DBManager::alter_add_fk(string &table_name, string &fk_name, string &ref_
 	
 	auto ref_index_path = db_dir / current_dbname / ref_table_name / (ref_table_name + "_pk.index");
 
+    RecordType record_type = schema.record_type();
     for (auto i = record_handler->begin(); !i.isEnd(); ++i) {
 		index_handler->openIndex(ref_index_path.c_str(), ref_fields.size());
 
-        auto values = to_value_list(*i, schema);
+        auto record = *i;
+        auto values = to_value_list(record, schema);
+        record.release(record_type);
         vector<int> ints;
         bool has_null = false;
         for (auto &column_index : column_indexes) {

@@ -34,11 +34,11 @@ struct Condition{
 };
 
 enum Aggregator_OP {
-    Count,
-    Average,
-    Max,
-    Min,
-    Sum
+    CNT,
+    AVG,
+    MAX,
+    MIN,
+    SUM
 };
 
 struct Aggregator{

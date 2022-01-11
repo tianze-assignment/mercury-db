@@ -412,5 +412,11 @@ antlrcpp::Any MyVisitor::visitOperator_(SQLParser::Operator_Context *context) {
 }
 
 antlrcpp::Any MyVisitor::visitAggregator(SQLParser::AggregatorContext *context) {
-    return antlrcpp::Any(0);
+    Aggregator_OP op;
+    if (context->Count()) op = CNT;
+    else if (context->Average()) op = AVG;
+    else if (context->Max()) op = MAX;
+    else if (context->Min()) op = MIN;
+    else op = SUM;
+    return antlrcpp::Any(op);
 }
