@@ -89,7 +89,50 @@ string DBManager::insert(string table_name, vector<vector<Value>> &value_lists){
     Schema& schema = get_schema(table_name);
     clock_t start = clock();
     open_record(schema);
-    for(auto value_list: value_lists) record_handler->ins(to_record(value_list, schema));
+	auto table_path = db_dir / current_dbname / table_name;
+    for(auto value_list: value_lists) {
+        // check pk
+        if (!schema.pk.pks.empty()) {
+            vector<int> pk_values;
+            for (auto pk: schema.pk.pks) {
+                int pki = schema.find_column(pk);
+                if (value_list[pki].type == NULL_TYPE) throw DBException("Primary key should not be NULL");
+                pk_values.push_back(*((int*)value_list[pki].bytes.data()));  
+            }
+            auto index_path = table_path / (table_name + "_pk.index");
+            index_handler->openIndex(index_path.c_str(), schema.pk.pks.size());
+            if (!index_handler->find(pk_values.data()).isEnd())
+                throw DBException("Duplicate primary key");
+        }
+        // check fk
+        for (auto fk: schema.fks) {
+            vector<int> fk_values;
+            bool has_null = false;
+            for (auto fk_col: fk.fks) {
+                int fki = schema.find_column(fk_col);
+                if (value_list[fki].type == NULL_TYPE) {has_null = true; break;}
+                fk_values.push_back(*((int*)value_list[fki].bytes.data()));
+            }
+            if (has_null) continue;
+            auto ref_index_path = db_dir / current_dbname / fk.ref_table / (fk.ref_table + "_pk.index");
+            if (index_handler->find(fk_values.data()).isEnd())
+                throw DBException(string("Invalid value for foreign key \"") + fk.name + "\"");
+        }
+        // insert record
+        auto index_val = record_handler->ins(to_record(value_list, schema)).toInt();
+        for (auto index: schema.get_indexes()) {
+            vector<int> key_values;
+            bool has_null = false;
+            for (auto key: index.second) {
+                int ki = schema.find_column(key);
+                if (value_list[ki].type == NULL_TYPE) {has_null = true; break;}
+                key_values.push_back(*((int*)value_list[ki].bytes.data()));  
+            }
+            if (has_null) continue;
+            index_handler->openIndex((table_path / index.first).c_str(), index.second.size());
+            index_handler->ins(key_values.data(), index_val);
+        }
+    }
     double use_time = (double)(clock() - start) / CLOCKS_PER_SEC;
     return "Insert " + rows_text(value_lists.size()) + " OK (" + to_string(use_time) + " Sec)";
 }
@@ -137,6 +180,7 @@ string DBManager::update(string table_name, vector<pair<string,Value>> assignmen
     Schema& schema = get_schema(table_name);
     clock_t start = clock();
     open_record(schema);
+    // init map and check assignments and conditions
     NameMap column_map;
     for (int i = 0; i < schema.columns.size(); ++i)
         column_map[schema.columns[i].name] = i;
@@ -147,10 +191,12 @@ string DBManager::update(string table_name, vector<pair<string,Value>> assignmen
         check_column(table_name, column_map, cond.a);
         if (!cond.b_col.second.empty()) check_column(table_name, column_map, cond.b_col);
     }
+    // update
     int count = 0;
     for (auto it = record_handler->begin(); !it.isEnd(); ) {
         auto value_list = to_value_list(*it, schema);
         int i;
+        // check conditions
         for (i = 0; i < conditions.size(); ++i) {
             Condition& cond = conditions[i];
             Value a = value_list[column_map[cond.a.second]];
@@ -163,6 +209,7 @@ string DBManager::update(string table_name, vector<pair<string,Value>> assignmen
             else b = value_list[column_map[cond.b_col.second]];
             if (!Condition::cmp(a, b, cond.op)) break;
         }
+        // conditions ok
         if (i == conditions.size()) {
             ++count;
             for (auto assignment: assignments)

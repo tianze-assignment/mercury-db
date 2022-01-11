@@ -96,6 +96,7 @@ string DBManager::alter_drop_pk(string &table_name, string &pk_name) {
     }
 
     // delete corresponding index
+    FileSystem::save();
     fs::remove(db_dir / current_dbname / table_name / (table_name + "_pk.index"));
     // delete pk
     schema.pk.pks.clear();
@@ -111,6 +112,7 @@ string DBManager::alter_drop_fk(string &table_name, string &fk_name) {
     int i = schema.find_fk_by_name(fk_name);
     if (i == schema.fks.size()) throw DBException(fmt("No foreign key '%s'", fk_name.c_str()));
 	// delete index
+    FileSystem::save();
 	fs::remove(db_dir / current_dbname / table_name / (table_name + "_" + schema.fks[i].name + ".index"));
 	// delete fk
     schema.fks.erase(schema.fks.begin() + i);
@@ -197,7 +199,7 @@ string DBManager::alter_add_fk(string &table_name, string &fk_name, string &ref_
 
 	auto table_path = db_dir / current_dbname / table_name;
     auto index_path = table_path / (table_name + "_" + fk_name + ".index");
-    if ( index_handler->createIndex(index_path.c_str(), fields.size()))
+    if (index_handler->createIndex(index_path.c_str(), fields.size()))
         throw DBException("Create file failed");
 	
 	auto ref_index_path = db_dir / current_dbname / ref_table_name / (ref_table_name + "_pk.index");

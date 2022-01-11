@@ -55,7 +55,8 @@ class Schema {
     Schema(string table_name, string db_name);
     bool write(string db_name);
     string to_str();
-    int find_column(string &name);
+    int find_column(string &name) const;
     int find_fk_by_name(string &name);
     RecordType record_type() const;
+    vector<pair<string,vector<string>>> get_indexes();
 };

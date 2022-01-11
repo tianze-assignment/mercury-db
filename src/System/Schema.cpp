@@ -203,7 +203,7 @@ string Schema::to_str() {
     return ss.str();
 }
 
-int Schema::find_column(string &name) {
+int Schema::find_column(string &name) const {
     int i = 0;
     for (; i < this->columns.size(); i++) {
         if (this->columns[i].name == name) break;
@@ -228,4 +228,12 @@ RecordType Schema::record_type() const {
             ++res.num_int;
     }
     return res;
+}
+
+vector<pair<string,vector<string>>> Schema::get_indexes() {
+    vector<pair<string,vector<string>>> res;
+    if (!pk.pks.empty()) res.push_back(make_pair(table_name + "_pk.index", pk.pks));
+    for (auto fk: fks) res.push_back(make_pair(table_name + "_" + fk.name + ".index", fk.fks));
+    for (int i = 0; i < indexes.size(); ++i)
+        res.push_back(make_pair(table_name + to_string(i) + ".index", indexes[i]));
 }

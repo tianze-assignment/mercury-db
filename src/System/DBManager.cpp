@@ -145,11 +145,13 @@ string DBManager::create_table(Schema &schema) {
     // add index for primary key & foreign key
     if(!schema.pk.pks.empty()){
         auto index_path = db_dir/current_dbname/schema.table_name/(schema.table_name+"_pk.index"); // implicit index
-        index_handler->createIndex(index_path.c_str(), schema.pk.pks.size());
+        if (index_handler->createIndex(index_path.c_str(), schema.pk.pks.size()))
+            throw DBException("Create file failed");
     }
     for(auto &fk : schema.fks){
         auto index_path = db_dir/current_dbname/schema.table_name/(schema.table_name+"_"+fk.name+".index"); // implicit index
-        index_handler->createIndex(index_path.c_str(), schema.pk.pks.size());
+        if (index_handler->createIndex(index_path.c_str(), schema.pk.pks.size()))
+            throw DBException("Create file failed");
     }
     // write
     suc = schema.write(current_dbname);
