@@ -111,10 +111,12 @@ string DBManager::create_table(Schema &schema) {
     }
     for (auto &pk_column : schema.pk.pks) {
         if (column_names.find(pk_column) == column_names.end()) return "Primary key field not declared: " + pk_column;
+        if(schema.columns[schema.find_column(pk_column)].type != INT) return "Primary key only support INT";
     }
     for (auto &fk : schema.fks) {
         for (auto &fk_column : fk.fks) {
             if (column_names.find(fk_column) == column_names.end()) return "Foreign key field not declared: " + fk_column;
+            if(schema.columns[schema.find_column(fk_column)].type != INT) return "Foreign key only support INT";
         }
         if (schemas.find(fk.ref_table) == schemas.end()) return "Foreign key ref table not found: " + fk.ref_table;
         Schema &ref_table_schema = schemas[fk.ref_table]; 
@@ -140,15 +142,13 @@ string DBManager::create_table(Schema &schema) {
         if (code.value() == 0) return "Table already exists";
         return code.message();
     }
-    // add index for primary key if all fields are INT
-    bool pk_all_int = schema.pk.pks.empty() ? false : true;
-    for (auto &pk_column : schema.pk.pks) {
-        if(schema.columns[schema.find_column(pk_column)].type != INT)
-            pk_all_int = false;
+    // add index for primary key & foreign key
+    if(!schema.pk.pks.empty()){
+        auto index_path = db_dir/current_dbname/schema.table_name/(schema.table_name+"_pk.index"); // implicit index
+        index_handler->createIndex(index_path.c_str(), schema.pk.pks.size());
     }
-    if(pk_all_int){
-        schema.indexes.push_back(schema.pk.pks);
-        auto index_path = db_dir/current_dbname/schema.table_name/(schema.table_name+"0"+".index"); // "0" corresponds to index at vector indexes
+    for(auto &fk : schema.fks){
+        auto index_path = db_dir/current_dbname/schema.table_name/(schema.table_name+"_"+fk.name+".index"); // implicit index
         index_handler->createIndex(index_path.c_str(), schema.pk.pks.size());
     }
     // write

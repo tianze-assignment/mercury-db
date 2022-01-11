@@ -10,30 +10,29 @@ namespace fs = std::filesystem;
 string DBManager::alter_add_index(string &table_name, vector<string> &fields) {
     check_db();
     auto &schema = get_schema(table_name);
-    // check fields are in schema columns
-    vector<int> column_indexes;
-    for (auto &field : fields) {
-        int column_index = schema.find_column(field);
-        if (column_index == schema.columns.size())
-            throw DBException("There is no field '" + field + "' in the schema");
-        if (schema.columns[column_index].type != INT)
-            throw DBException("Field '" + field + "' is not INT");
-        column_indexes.push_back(column_index);
-    }
-    // alter
-    schema.indexes.push_back(fields);
-    // write schema
-    bool suc = schema.write(current_dbname);
-    if (!suc) {
-        schema.indexes.pop_back();
-        throw DBException("Cannot write to schema file");
-    }
+	// check fields are in schema columns
+	vector<int> column_indexes;
+	for (auto &field : fields) {
+		int column_index = schema.find_column(field);
+		if (column_index == schema.columns.size())
+			throw DBException("There is no field '" + field + "' in the schema");
+		if (schema.columns[column_index].type != INT)
+			throw DBException("Field '" + field + "' is not INT");
+		column_indexes.push_back(column_index);
+	}
+	// alter
+	schema.indexes.push_back(fields);
+	// write schema
+	bool suc = schema.write(current_dbname);
+	if (!suc) {
+		schema.indexes.pop_back();
+		throw DBException("Cannot write to schema file");
+	}
     // write index
     auto table_path = db_dir / current_dbname / table_name;
     auto index_path = table_path / (table_name + to_string(schema.indexes.size() - 1) + ".index");
     if (index_handler->createIndex(index_path.c_str(), fields.size()))
         throw DBException("Create file failed");
-    auto data_path = table_path / (table_name + ".data");
     open_record(schema);
     for (auto i = record_handler->begin(); !i.isEnd(); ++i) {
         auto values = to_value_list(*i, schema);
@@ -97,8 +96,7 @@ string DBManager::alter_drop_pk(string &table_name, string &pk_name) {
     }
 
     // delete corresponding index
-    if (find(schema.indexes.begin(), schema.indexes.end(), schema.pk.pks) != schema.indexes.end())
-        this->alter_drop_index(table_name, schema.pk.pks);
+    fs::remove(db_dir / current_dbname / table_name / (table_name + "_pk.index"));
     // delete pk
     schema.pk.pks.clear();
     // write
@@ -112,6 +110,9 @@ string DBManager::alter_drop_fk(string &table_name, string &fk_name) {
     auto &schema = get_schema(table_name);
     int i = schema.find_fk_by_name(fk_name);
     if (i == schema.fks.size()) throw DBException(fmt("No foreign key '%s'", fk_name.c_str()));
+	// delete index
+	fs::remove(db_dir / current_dbname / table_name / (table_name + "_" + schema.fks[i].name + ".index"));
+	// delete fk
     schema.fks.erase(schema.fks.begin() + i);
     bool suc = schema.write(current_dbname);
     if (!suc) throw DBException("Write schema failed");
@@ -124,43 +125,47 @@ string DBManager::alter_add_pk(string &table_name, string &pk_name, vector<strin
     if (!schema.pk.pks.empty()) throw DBException("Primary key already exists");
     // check pks are among the fields
     vector<int> column_indexes;
-    bool all_int = true;
     for (auto &pk : pks) {
         int i = schema.find_column(pk);
         if (i == schema.columns.size()) throw DBException(fmt("Column '%s' not found in schema", pk.c_str()));
-        column_indexes.push_back(i);
-        if (schema.columns[i].type != INT) all_int = false;
+        if (schema.columns[i].type != INT) throw DBException("Primary key only support INT");
+		column_indexes.push_back(i);
     }
 
-    // check unique & null
+    // check unique & null, build index
     unordered_set<vector<int>, VectorHash> pk_values;
+	auto table_path = db_dir / current_dbname / table_name;
+    auto index_path = table_path / (table_name + "_pk.index");
+    if ( index_handler->createIndex(index_path.c_str(), pks.size()))
+        throw DBException("Create file failed");
     open_record(schema);
     for (auto i = record_handler->begin(); !i.isEnd(); ++i) {
         auto values = to_value_list(*i, schema);
         vector<int> ints;
         for (auto &column_index : column_indexes) {
-            if (values[column_index].type == NULL_TYPE)
+            if (values[column_index].type == NULL_TYPE){
+				FileSystem::save();
+				fs::remove(index_path);
                 throw DBException("ERROR: NULL values found");
+			}
             ints.push_back(*((int *)(&values[column_index].bytes[0])));
         }
         if (pk_values.find(ints) != pk_values.end()) {
+			FileSystem::save();
+			fs::remove(index_path);
             stringstream ss;
             copy(ints.begin(), ints.end(), ostream_iterator<int>(ss, " "));
             throw DBException("Found duplicate field tuples:\n" + ss.str());
         }
         pk_values.insert(ints);
+		index_handler->ins(ints.data(), i.toInt());
     }
+	FileSystem::save();
 
     schema.pk.name = pk_name;
     schema.pk.pks = pks;
     bool suc = schema.write(current_dbname);
     if (!suc) throw DBException("Write schema failed while adding primary key");
-
-    // build index
-    bool had_index = find(schema.indexes.begin(), schema.indexes.end(), pks) != schema.indexes.end();
-    if (!had_index && all_int) {
-        alter_add_index(table_name, pks);
-    }
 
     return "Added";
 }
@@ -183,18 +188,23 @@ string DBManager::alter_add_fk(string &table_name, string &fk_name, string &ref_
     // check ref_fields is the other table's pk
     auto &ref_schema = get_schema(ref_table_name);
     if (ref_schema.pk.pks != ref_fields) throw DBException("Ref field is not the pk of the referenced table");
-    // assuming current table's fk and ref table's pk can only be INT
-    // check fk constraint
-    int ref_index_num = find(ref_schema.indexes.begin(), ref_schema.indexes.end(), ref_fields) - ref_schema.indexes.begin();
-    if (ref_index_num == ref_schema.indexes.size()) throw DBException("Ref field doesn't have corresponding index");
-    index_handler->openIndex(
-        (db_dir / current_dbname / ref_table_name / (ref_table_name + to_string(ref_index_num) + ".index")).c_str(), ref_fields.size());
+	
     open_record(schema);
     vector<int> ref_column_indexes;
     for (auto &c : ref_fields) {
         ref_column_indexes.push_back(ref_schema.find_column(c));
     }
+
+	auto table_path = db_dir / current_dbname / table_name;
+    auto index_path = table_path / (table_name + "_" + fk_name + ".index");
+    if ( index_handler->createIndex(index_path.c_str(), fields.size()))
+        throw DBException("Create file failed");
+	
+	auto ref_index_path = db_dir / current_dbname / ref_table_name / (ref_table_name + "_pk.index");
+
     for (auto i = record_handler->begin(); !i.isEnd(); ++i) {
+		index_handler->openIndex(ref_index_path.c_str(), ref_fields.size());
+
         auto values = to_value_list(*i, schema);
         vector<int> ints;
         bool has_null = false;
@@ -208,11 +218,17 @@ string DBManager::alter_add_fk(string &table_name, string &fk_name, string &ref_
         if (has_null) continue;
         auto it = index_handler->find(ints.data());
         if (it.isEnd()) {
+			FileSystem::save();
+			fs::remove(index_path);
             stringstream ss;
             copy(ints.begin(), ints.end(), ostream_iterator<int>(ss, ", "));
             throw DBException(fmt("Field (%s) in current table is not found in ref table", ss.str().c_str()));
         }
+
+		index_handler->openIndex(index_path.c_str(), fields.size());
+		index_handler->ins(ints.data(), i.toInt());
     }
+	FileSystem::save();
 
 	FK fk;
 	fk.name = fk_name;
