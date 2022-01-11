@@ -94,6 +94,14 @@ string DBManager::alter_drop_pk(string &table_name, string &pk_name) {
         string info = fmt("Primary key name '%s' not equal to the original name '%s'", pk_name.c_str(), schema.pk.name.c_str());
         throw DBException(info);
     }
+	// check fk of other tables
+	for(auto i : schemas){
+		for(auto &fk : i.second.fks){
+			if(fk.ref_table == table_name && fk.ref_fks == schema.pk.pks){
+				throw DBException(fmt("Table '%s' has fk '%s' referencing current table's pk", i.first.c_str(), fk.name.c_str()));
+			}
+		}
+	}
 
     // delete corresponding index
     FileSystem::save();
