@@ -15,12 +15,12 @@ struct RecordType{
 struct Record{
     vector<bool> int_null, varchar_null;
     vector<int> int_data;
-    vector<char*> varchar_data;
+    vector<string> varchar_data;
     Record(const RecordType& type) {
         int_null = vector<bool>(type.num_int);
         int_data = vector<int>(type.num_int);
         varchar_null = vector<bool>(type.num_varchar);
-        varchar_data = vector<char*>(type.num_varchar);
+        varchar_data = vector<string>(type.num_varchar);
     }
     void output(std::ostream& os, const RecordType& type) {
         for (int i = 0; i < type.num_int; ++i)
@@ -28,9 +28,5 @@ struct Record{
         for (int i = 0; i < type.num_varchar; ++i)
             varchar_null[i] ? (os << "NULL ") : (os << "\"" << varchar_data[i] << "\" ");
         os << std::endl;
-    }
-    void release(const RecordType& type) {
-        for (int i = 0; i < type.num_varchar; ++i)
-            delete[] varchar_data[i];
     }
 };

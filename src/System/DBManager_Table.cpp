@@ -24,7 +24,7 @@ Schema& DBManager::get_schema(const string& table_name) {
     return schemas[table_name];
 }
 
-Record DBManager::to_record(vector<Value>& value_list, const Schema& schema) {
+Record DBManager::to_record(const vector<Value>& value_list, const Schema& schema) {
     if (value_list.size() != schema.columns.size()) throw DBException("Invalid number of values");
     Record record(schema.record_type());
     int int_count = 0, varchar_count = 0;
@@ -42,8 +42,7 @@ Record DBManager::to_record(vector<Value>& value_list, const Schema& schema) {
             record.varchar_null[varchar_count] = false;
             if (value.bytes.size() > column.varchar_len)
                 throw DBException((string)"Varchar \"" + column.name + "\" too long");
-            value.bytes.push_back('\0');
-            record.varchar_data[varchar_count++] = (char *)value.bytes.data();
+            record.varchar_data[varchar_count++] = string(value.bytes.begin(), value.bytes.end());
         }
         else {
             record.int_null[int_count] = false;
@@ -66,7 +65,7 @@ vector<Value> DBManager::to_value_list(const Record& record, const Schema& schem
             if (record.varchar_null[varchar_count]) v.type = NULL_TYPE;
             else {
                 v.type = VARCHAR;
-                string s(record.varchar_data[varchar_count]);
+                auto& s = record.varchar_data[varchar_count];
                 v.bytes = vector<uint8_t>(s.begin(), s.end());
             }
             ++varchar_count;
@@ -226,11 +225,8 @@ string DBManager::delete_(string table_name, vector<Condition> conditions) {
     // delete
     int count = 0;
     vector<string> fails;
-    auto record_type = schema.record_type();
     for (auto it = record_handler->begin(); !it.isEnd(); ) {
-        auto record = *it;
-        auto value_list = to_value_list(record, schema);
-        record.release(record_type);
+        auto value_list = to_value_list(*it, schema);
         if (check_conditions(value_list, column_map, conditions)) {
             // fk constraint check
             auto pk_values = get_pk_values(schema, value_list);
@@ -291,11 +287,8 @@ string DBManager::update(string table_name, vector<pair<string,Value>> assignmen
     // update
     int count = 0;
     vector<string> fails;
-    auto record_type = schema.record_type();
     for (auto it = record_handler->begin(); !it.isEnd(); ) {
-        auto old_record = *it;
-        auto value_list = to_value_list(old_record, schema);
-        old_record.release(record_type);
+        auto value_list = to_value_list(*it, schema);
         if (check_conditions(value_list, column_map, conditions)) {
             ++count;
             auto old_value_list = value_list;
@@ -384,12 +377,10 @@ Query DBManager::select(vector<QueryCol> cols, vector<string> tables, vector<Con
     Query query;
     // init maps and queryColomns
     vector<Schema> schemas;
-    vector<RecordType> record_types;
     NameMap table_map;
     vector<NameMap> column_maps;
     for (int i = 0; i < tables.size(); ++i) {
         schemas.push_back(get_schema(tables[i]));
-        record_types.push_back(schemas.back().record_type());
         if (table_map.find(tables[i]) != table_map.end()) throw DBException("Duplicate table \"" + tables[i] + "\"");
         table_map[tables[i]] = i;
         column_maps.push_back(NameMap());
@@ -442,15 +433,10 @@ Query DBManager::select(vector<QueryCol> cols, vector<string> tables, vector<Con
             open_record(schemas[i]);
             if (ifound[i]) {
                 index_handler->openIndex((db_dir / current_dbname / inames[i]).c_str(), isizes[i]);
-                auto record = *RecordHandler::Iterator(record_handler, *iits[i]);
-                value_lists.push_back(to_value_list(record, schemas[i]));
-                record.release(record_types[i]);
+                auto it = RecordHandler::Iterator(record_handler, *iits[i]);
+                value_lists.push_back(to_value_list(*it, schemas[i]));
             }
-            else {
-                auto record = *its[i];
-                value_lists.push_back(to_value_list(*its[i], schemas[i]));
-                record.release(record_types[i]);
-            }
+            else value_lists.push_back(to_value_list(*its[i], schemas[i]));
         }
         // check conditions
         for (i = 0; i < conditions.size(); ++i) {

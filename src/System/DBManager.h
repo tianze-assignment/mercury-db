@@ -39,7 +39,7 @@ class DBManager {
     string file_name(const Schema& schema);
     void open_record(const Schema& schema);
     Schema& get_schema(const string& table_name);
-    Record to_record(vector<Value>& value_list, const Schema& schema); // note : varchar value will be appended '\0'
+    Record to_record(const vector<Value>& value_list, const Schema& schema);
     vector<Value> to_value_list(const Record& record, const Schema& schema);
     void check_ins_pk(const Schema& schema, const vector<Value>& value_list);
     void check_ins_fk(const Schema& schema, const vector<Value>& value_list);

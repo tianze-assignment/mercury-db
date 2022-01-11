@@ -92,9 +92,7 @@ Record RecordHandler::_getRecord(int page, int slot) {
     for (int i = 0; i < _type.num_varchar; ++i) if (!record.varchar_null[i]) {
         uint16_t len = *(uint16_t*)(&_data[offset]);
         offset += sizeof(uint16_t);
-        record.varchar_data[i] = new char[len+1];
-        memcpy(record.varchar_data[i], _data+offset, len);
-        record.varchar_data[i][len] = 0;
+        record.varchar_data[i] = string(_data+offset, _data+offset+len);
         offset += len;
     }
 
@@ -114,7 +112,7 @@ void RecordHandler::_nextSlot(int& page, int& slot) {
 int RecordHandler::_getLen(const Record& record) {
     int len = (_type.num_int + _type.num_varchar + 7 >> 3) + sizeof(int) * _type.num_int;
     for (int i = 0; i < _type.num_varchar; ++i) if(!record.varchar_null[i])
-        len += sizeof(uint16_t) + strlen(record.varchar_data[i]);
+        len += sizeof(uint16_t) + record.varchar_data[i].size();
     return len;
 }
 
@@ -139,10 +137,10 @@ void RecordHandler::_setRecord(int offset, const Record& record) {
         offset += sizeof(int);
     }
     for (int i = 0; i < _type.num_varchar; ++i) if (!record.varchar_null[i]) {
-        uint16_t len = strlen(record.varchar_data[i]);
+        uint16_t len = record.varchar_data[i].size();
         *(uint16_t*)(&_data[offset]) = len;
         offset += sizeof(uint16_t);
-        memcpy(_data+offset, record.varchar_data[i], len);
+        memcpy(_data+offset, record.varchar_data[i].data(), len);
         offset += len;
     }
 }
