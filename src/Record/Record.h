@@ -26,4 +26,8 @@ struct Record{
             varchar_null[i] ? (os << "NULL ") : (os << "\"" << varchar_data[i] << "\" ");
         os << std::endl;
     }
+    void release(const RecordType& type) {
+        for (int i = 0; i < type.num_varchar; ++i)
+            delete[] varchar_data[i];
+    }
 };

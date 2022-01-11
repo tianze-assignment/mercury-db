@@ -153,11 +153,23 @@ string DBManager::insert(string table_name, vector<vector<Value>> &value_lists){
     clock_t start = clock();
     open_record(schema);
 	auto table_path = db_dir / current_dbname / table_name;
+
+    int count = 0;
+    vector<string> fails;
     for(auto value_list: value_lists) {
-        auto record = to_record(value_list, schema); // check format first
-        check_ins_pk(schema, value_list);
-        check_ins_fk(schema, value_list);
+        RecordType _type;
+        Record record(_type);
+        try {
+            record = to_record(value_list, schema); // check format first
+            check_ins_pk(schema, value_list);
+            check_ins_fk(schema, value_list);
+        }
+        catch (DBException e) {
+            fails.push_back(e.what());
+            continue;
+        }
         // insert record
+        ++count;
         auto index_val = record_handler->ins(record).toInt();
         for (auto index: schema.get_indexes()) {
             vector<int> key_values;
@@ -173,7 +185,12 @@ string DBManager::insert(string table_name, vector<vector<Value>> &value_lists){
         }
     }
     double use_time = (double)(clock() - start) / CLOCKS_PER_SEC;
-    return "Insert " + rows_text(value_lists.size()) + " OK (" + to_string(use_time) + " Sec)";
+    string result = "Insert " + rows_text(count) + " OK (" + to_string(use_time) + " Sec)";
+    if (!fails.empty()) {
+        result += "\n" + rows_text(fails.size()) += " failed:";
+        for (auto fail: fails) result += "\n    " + fail;
+    }
+    return result;
 }
 
 bool DBManager::check_conditions(const vector<Value>& value_list, const NameMap& column_map, const vector<Condition>& conditions) {
@@ -208,13 +225,22 @@ string DBManager::delete_(string table_name, vector<Condition> conditions) {
     auto fks_ref_current = get_fks_ref(schema);
     // delete
     int count = 0;
+    vector<string> fails;
+    auto record_type = schema.record_type();
     for (auto it = record_handler->begin(); !it.isEnd(); ) {
-        auto value_list = to_value_list(*it, schema);
+        auto record = *it;
+        auto value_list = to_value_list(record, schema);
+        record.release(record_type);
         if (check_conditions(value_list, column_map, conditions)) {
             // fk constraint check
             auto pk_values = get_pk_values(schema, value_list);
-            check_del_pk(fks_ref_current, pk_values);
-
+            try {
+                check_del_pk(fks_ref_current, pk_values);
+            }    
+            catch (DBException e) {
+                fails.push_back(e.what());
+                continue;
+            }
             // delete from index
             int index_val = it.toInt();
             for(auto index : schema.get_indexes()){
@@ -236,7 +262,12 @@ string DBManager::delete_(string table_name, vector<Condition> conditions) {
         else ++it;
     }
     double use_time = (double)(clock() - start) / CLOCKS_PER_SEC;
-    return "Delete " + rows_text(count) + " OK (" + to_string(use_time) + " Sec)";
+    string result = "Delete " + rows_text(count) + " OK (" + to_string(use_time) + " Sec)";
+    if (!fails.empty()) {
+        result += "\n" + rows_text(fails.size()) += " failed:";
+        for (auto fail: fails) result += "\n    " + fail;
+    }
+    return result;
 }
 
 string DBManager::update(string table_name, vector<pair<string,Value>> assignments, vector<Condition> conditions) {
@@ -259,8 +290,12 @@ string DBManager::update(string table_name, vector<pair<string,Value>> assignmen
     auto fks_ref_current = get_fks_ref(schema);
     // update
     int count = 0;
+    vector<string> fails;
+    auto record_type = schema.record_type();
     for (auto it = record_handler->begin(); !it.isEnd(); ) {
-        auto value_list = to_value_list(*it, schema);
+        auto old_record = *it;
+        auto value_list = to_value_list(old_record, schema);
+        old_record.release(record_type);
         if (check_conditions(value_list, column_map, conditions)) {
             ++count;
             auto old_value_list = value_list;
@@ -268,15 +303,23 @@ string DBManager::update(string table_name, vector<pair<string,Value>> assignmen
             for (auto assignment: assignments)
                 value_list[column_map[assignment.first]] = assignment.second;
             
-            // check format first
-            auto record = to_record(value_list, schema);
-            // check fk,pk constraint
-            auto pk_values = get_pk_values(schema, value_list);
-            if (pk_values != old_pk_values) {
-                check_del_pk(fks_ref_current, old_pk_values);
-                check_ins_pk(schema, value_list);
+            RecordType _type;
+            Record record(_type);
+            try {
+                // check format first
+                record = to_record(value_list, schema);
+                // check fk,pk constraint
+                auto pk_values = get_pk_values(schema, value_list);
+                if (pk_values != old_pk_values) {
+                    check_del_pk(fks_ref_current, old_pk_values);
+                    check_ins_pk(schema, value_list);
+                }
+                check_ins_fk(schema, value_list);
             }
-            check_ins_fk(schema, value_list);
+            catch (DBException e) {
+                fails.push_back(e.what());
+                continue;
+            }
 
             // update record
             int old_index_val = it.toInt();
@@ -306,7 +349,12 @@ string DBManager::update(string table_name, vector<pair<string,Value>> assignmen
         else ++it;
     }
     double use_time = (double)(clock() - start) / CLOCKS_PER_SEC;
-    return "Update " + rows_text(count) + " OK (" + to_string(use_time) + " Sec)";
+    string result = "Update " + rows_text(count) + " OK (" + to_string(use_time) + " Sec)";
+    if (!fails.empty()) {
+        result += "\n" + rows_text(fails.size()) += " failed:";
+        for (auto fail: fails) result += "\n    " + fail;
+    }
+    return result;
 }
 
 void DBManager::check_column(const string& table_name, const NameMap& column_map, const QueryCol& col) {
@@ -336,10 +384,12 @@ Query DBManager::select(vector<QueryCol> cols, vector<string> tables, vector<Con
     Query query;
     // init maps and queryColomns
     vector<Schema> schemas;
+    vector<RecordType> record_types;
     NameMap table_map;
     vector<NameMap> column_maps;
     for (int i = 0; i < tables.size(); ++i) {
         schemas.push_back(get_schema(tables[i]));
+        record_types.push_back(schemas.back().record_type());
         if (table_map.find(tables[i]) != table_map.end()) throw DBException("Duplicate table \"" + tables[i] + "\"");
         table_map[tables[i]] = i;
         column_maps.push_back(NameMap());
@@ -392,10 +442,15 @@ Query DBManager::select(vector<QueryCol> cols, vector<string> tables, vector<Con
             open_record(schemas[i]);
             if (ifound[i]) {
                 index_handler->openIndex((db_dir / current_dbname / inames[i]).c_str(), isizes[i]);
-                auto it = RecordHandler::Iterator(record_handler, *iits[i]);
-                value_lists.push_back(to_value_list(*it, schemas[i]));
+                auto record = *RecordHandler::Iterator(record_handler, *iits[i]);
+                value_lists.push_back(to_value_list(record, schemas[i]));
+                record.release(record_types[i]);
             }
-            else value_lists.push_back(to_value_list(*its[i], schemas[i]));
+            else {
+                auto record = *its[i];
+                value_lists.push_back(to_value_list(*its[i], schemas[i]));
+                record.release(record_types[i]);
+            }
         }
         // check conditions
         for (i = 0; i < conditions.size(); ++i) {
