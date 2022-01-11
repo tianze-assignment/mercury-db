@@ -147,7 +147,10 @@ antlrcpp::Any MyVisitor::visitSelect_table(SQLParser::Select_tableContext *conte
     auto tables = context->identifiers()->accept(this).as<vector<string>>();
     vector<Condition> conds;
     if (auto c = context->where_and_clause()) conds = c->accept(this).as<vector<Condition>>();
-    return antlrcpp::Any(db_manager->select(cols, tables, conds));
+    int limit = -1, offset = 0;
+    if (context->Integer().size() > 0) limit = stoi(context->Integer()[0]->getText());
+    if (context->Integer().size() > 1) offset = stoi(context->Integer()[1]->getText());
+    return antlrcpp::Any(db_manager->select(cols, tables, conds, limit, offset));
 }
 
 antlrcpp::Any MyVisitor::visitAlter_add_index(SQLParser::Alter_add_indexContext *context) {
@@ -331,11 +334,19 @@ antlrcpp::Any MyVisitor::visitWhere_null(SQLParser::Where_nullContext *context) 
 }
 
 antlrcpp::Any MyVisitor::visitWhere_in_list(SQLParser::Where_in_listContext *context) {
-    return antlrcpp::Any(0);
+    Condition cond;
+    cond.a = context->column()->accept(this).as<QueryCol>();
+    cond.op = IN;
+    cond.b_value_lists.push_back(context->value_list()->accept(this).as<vector<Value>>());
+    return antlrcpp::Any(cond);
 }
 
 antlrcpp::Any MyVisitor::visitWhere_in_select(SQLParser::Where_in_selectContext *context) {
-    return antlrcpp::Any(0);
+    Condition cond;
+    cond.a = context->column()->accept(this).as<QueryCol>();
+    cond.op = IN;
+    cond.b_value_lists = context->select_table()->accept(this).as<Query>().value_lists;
+    return antlrcpp::Any(cond);
 }
 
 antlrcpp::Any MyVisitor::visitWhere_like_string(SQLParser::Where_like_stringContext *context) {

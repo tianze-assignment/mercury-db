@@ -31,7 +31,7 @@ string DBManager::alter_add_index(string &table_name, vector<string> &fields) {
     // write index
     auto table_path = db_dir / current_dbname / table_name;
     auto index_path = table_path / (table_name + to_string(schema.indexes.size() - 1) + ".index");
-    if ( index_handler->createIndex(index_path.c_str(), fields.size()))
+    if (index_handler->createIndex(index_path.c_str(), fields.size()))
         throw DBException("Create file failed");
     auto data_path = table_path / (table_name + ".data");
     open_record(schema);

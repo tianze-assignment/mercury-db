@@ -113,6 +113,10 @@ string DBManager::delete_(string table_name, vector<Condition> conditions) {
         for (i = 0; i < conditions.size(); ++i) {
             Condition& cond = conditions[i];
             Value a = value_list[column_map[cond.a.second]];
+            if (cond.op == IN) {
+                if (cond.check_in(a)) continue;
+                else break;
+            }
             Value b;
             if (cond.b_col.second.empty()) b = cond.b_val;
             else b = value_list[column_map[cond.b_col.second]];
@@ -150,6 +154,10 @@ string DBManager::update(string table_name, vector<pair<string,Value>> assignmen
         for (i = 0; i < conditions.size(); ++i) {
             Condition& cond = conditions[i];
             Value a = value_list[column_map[cond.a.second]];
+            if (cond.op == IN) {
+                if (cond.check_in(a)) continue;
+                else break;
+            }
             Value b;
             if (cond.b_col.second.empty()) b = cond.b_val;
             else b = value_list[column_map[cond.b_col.second]];
@@ -189,7 +197,7 @@ Value DBManager::get_value(const vector<vector<Value>>& value_lists,
     return value_lists[table][column];
 }
 
-Query DBManager::select(vector<QueryCol> cols, vector<string> tables, vector<Condition> conditions) {
+Query DBManager::select(vector<QueryCol> cols, vector<string> tables, vector<Condition> conditions, int limit, int offset) {
     check_db();
     Query query;
     vector<Schema> schemas;
@@ -223,7 +231,7 @@ Query DBManager::select(vector<QueryCol> cols, vector<string> tables, vector<Con
         its.push_back(record_handler->begin());
         if (its.back().isEnd()) return query;
     }
-    while (true) {
+    while (limit == -1 || query.value_lists.size() < limit) {
         int i;
         vector<vector<Value>> value_lists;
         for (i = 0; i < its.size(); ++i) {
@@ -233,6 +241,10 @@ Query DBManager::select(vector<QueryCol> cols, vector<string> tables, vector<Con
         for (i = 0; i < conditions.size(); ++i) {
             Condition& cond = conditions[i];
             Value a = get_value(value_lists, table_map, column_maps, cond.a);
+            if (cond.op == IN) {
+                if (cond.check_in(a)) continue;
+                else break;
+            }
             Value b;
             if (cond.b_col.second.empty()) b = cond.b_val;
             else b = get_value(value_lists, table_map, column_maps, cond.b_col);
@@ -241,7 +253,8 @@ Query DBManager::select(vector<QueryCol> cols, vector<string> tables, vector<Con
         if (i == conditions.size()) {
             vector<Value> value_list;
             for (auto col: query.columns) value_list.push_back(get_value(value_lists, table_map, column_maps, col));
-            query.value_lists.push_back(value_list);
+            if (!offset) query.value_lists.push_back(value_list);
+            else --offset;
         }
         for (i=its.size()-1; i >= 0 ; --i) {
             open_record(schemas[i]);

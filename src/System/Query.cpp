@@ -81,6 +81,12 @@ bool Condition::cmp(const Value& a, const Value& b, CMP_OP op) {
     }
 }
 
+bool Condition::check_in(const Value& a) {
+    for (auto value_list: b_value_lists)
+        for (auto value: value_list) if (cmp(a, value, EQUAL)) return true;
+    return false;
+}
+
 string Query::to_str() {
     if (value_lists.empty()) return "";
     fort::char_table table;

@@ -66,7 +66,7 @@ class DBManager {
 	string insert(string table_name, vector<vector<Value>> &value_lists);
     string delete_(string table_name, vector<Condition> conditions);
     string update(string table_name, vector<pair<string,Value>> assignments, vector<Condition> conditions);
-    Query select(vector<QueryCol> cols, vector<string> tables, vector<Condition> conditions);
+    Query select(vector<QueryCol> cols, vector<string> tables, vector<Condition> conditions, int limit = -1, int offset = 0);
 
     string alter_add_index(string &table_name, vector<string> &fields);
     string alter_drop_index(string &table_name, vector<string> &fields);
