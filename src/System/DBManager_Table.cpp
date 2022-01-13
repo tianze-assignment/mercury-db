@@ -329,7 +329,7 @@ string DBManager::update(string table_name, vector<pair<string,Value>> assignmen
                     if (!has_null) key_values.push_back(*((int*)value_list[ki].bytes.data()));
                     if (!old_has_null) old_key_values.push_back(*((int*)old_value_list[ki].bytes.data()));
                 }
-                if (has_null && old_has_null) break;
+                if (has_null && old_has_null) continue;
                 index_handler->openIndex((db_dir/current_dbname/table_name/index.first).c_str(), index.second.size());
                 if (!has_null && !old_has_null)
                     index_handler->upd(old_key_values.data(), old_index_val, key_values.data(), index_val);
