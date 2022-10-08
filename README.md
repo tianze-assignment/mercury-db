@@ -36,6 +36,11 @@ All database files are stored at directory `databases/` relative to the working 
 - Multiline input are supported. Input will be regarded as the next line unless ending with `;`.
   - `Ctrl+D` can also be used to abandon a halfway multiline input when there is no other characters on the current line.
 
+## Contributors
+
+- [tianze0926](https://github.com/tianze0926)
+- [icrim](https://github.com/icrim)
+
 ## Acknowledgment
 
 - [Hash function from Stack Overflow](https://stackoverflow.com/a/29855973) that use vector of ints as key of unordered set
